@@ -20,8 +20,10 @@ renders/
 *.png
 
 # Reference images are public domain and ARE committed, so re-include them.
-!reference/*.jpg
-!reference/*.png
+# The ** matters: a bare `reference/*.png` misses reference/progress/, which is
+# where the build's own progress renders go, and they were silently dropped.
+!reference/**/*.jpg
+!reference/**/*.png
 
 # macOS
 .DS_Store
