@@ -211,6 +211,58 @@ shadow-casting lights is a large, entirely wasted cost in EEVEE.
 
 ---
 
+## Phase order is load-bearing — it caused three silent bugs
+
+`scripts/build_all.py` owns the order. Do not run phases ad hoc.
+
+1. **03_materials must run AFTER 02b/02c.** It assigns wall faces by height and
+   the booleans renumber every face.
+2. **03_materials is the only place fittings get materials.** A
+   `bpy.data.materials.get(...)` inside 02b runs before the material exists,
+   silently returns `None`, and the object ends up bare. Every window frame
+   rendered with no material at all before this was found.
+3. **06_lighting owns the WORLD.** The HDRI was originally set in 03b and 06
+   rebuilt the world afterwards, silently discarding it. The garden vanished and
+   the placeholder sky came back with nothing reporting a problem.
+4. **The light probe bakes LAST**, after every material and light is final.
+
+Phases hand materials to each other by request: an object sets
+`obj["oo_material"] = "darkwood"` and a later phase assigns it. Because of that,
+no single phase can assert that nothing was left bare — `build_all.py` does it
+at the end and raises.
+
+---
+
+## The camera framing is a two-sided constraint
+
+Both sides bite, and each was hit in turn.
+
+- **Too level and the cornice never appears.** At 28 mm the vertical half-angle
+  is 19.9°, so at the south wall 5.46 m away the frame tops out at z 3.58 m
+  against a cornice starting at 4.56 m.
+- **Too much tilt and the floor goes.** At 24 mm with 7° of tilt the rug left
+  frame entirely — which would have wasted the border quotations built
+  specifically for this shot.
+
+**20 mm at 3°** holds both: half-angle 26.9°, so at the south wall the frame runs
+from below floor level up to z 4.74 m.
+
+Re-check this whenever furniture changes. It is easy to fix one end and silently
+lose the other.
+
+---
+
+## Render cost, measured
+
+**20.9 s/frame** at 3840×2160, 64 EEVEE samples, on a 16 GB M1. 600 frames is
+**about 3.5 hours** — in line with the overnight estimate given at scoping.
+
+Renders to a PNG sequence, never straight to video: a crash or a sleeping laptop
+partway through must not lose the frames already written. `scripts/encode.sh`
+does the mp4.
+
+---
+
 ## Booleans: use MANIFOLD. The EXACT solver empties this mesh
 
 **In Blender 5.2 the EXACT boolean solver reduces the solidified wall to ZERO
