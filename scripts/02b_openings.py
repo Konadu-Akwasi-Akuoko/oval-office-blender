@@ -70,6 +70,36 @@ def bearing_of_point(x, y):
     return math.degrees(math.atan2(x / oo.SEMI_X, -y / oo.SEMI_Y))
 
 
+def make_outline_cutter(name, bearing, outline, coll, depth_out, depth_in):
+    """Cutter from an arbitrary (along, height) outline rather than a box.
+
+    Needed for the door case recess. A plain rectangle 3.72 m tall left the
+    recess exposed above the pediment's rakes, which rendered as a dark
+    rectangle floating behind the pediment - visible at both doors, twice per
+    rotation. The recess has to follow the case silhouette.
+    """
+    pos, tangent, inward, up = oo.point_and_frame(bearing, -depth_out)
+    origin = Vector((pos.x, pos.y, 0.0))
+    v, f = [], []
+    oo.add_prism(v, f, outline, origin, tangent, inward, up, depth_out + depth_in)
+    obj = oo.new_mesh_object(name, v, f, coll)
+    obj.display_type = "WIRE"
+    obj.hide_render = True
+    return obj
+
+
+def case_outline():
+    """Silhouette of the door case: rectangle to the cornice, then the pediment."""
+    half = (CASE_OUTER_W + 0.39) / 2.0
+    return [
+        (-half, 0.0),
+        (half, 0.0),
+        (half, 3.09),
+        (0.0, PEDIMENT_APEX + 0.07),
+        (-half, 3.09),
+    ]
+
+
 def make_cutter(name, bearing, width, height, z_bottom, coll,
                 depth_out=0.90, depth_in=0.25):
     """A flat box spanning the wall at `bearing`, oriented to the true normal."""
@@ -259,12 +289,40 @@ def build_pedimented_case(index, bearing, coll):
 
     case = oo.new_mesh_object(f"{PREFIX}_Door{index}_Case", v, f, coll)
 
-    # Leaves: a pair of panelled doors.
+    # Leaves: a pair of six-panel doors. The panels are real geometry rather
+    # than a map, because a flat slab in bright trim white read as a glowing
+    # rectangle with a seam down it - there was nothing for light to catch.
     lv, lf = [], []
     _, tangent, inward, up = oo.point_and_frame(bearing)
+    leaf_w = DOOR_W / 2.0 - 0.006
+    leaf_back = face - 0.055
+    leaf_thick = 0.045
+    # add_box runs from its centre ALONG the inward normal, so the leaf's room-
+    # facing surface is at leaf_back + leaf_thick. Anything meant to stand proud
+    # of the leaf has to start there. Placing the panels at a smaller inset put
+    # them on the wall side and buried them inside the leaf, invisibly.
+    leaf_front = leaf_back + leaf_thick
+
     for side in (-1, 1):
-        centre = at(face - 0.055, DOOR_H / 2.0, side * DOOR_W / 4.0)
-        oo.add_box(lv, lf, centre, tangent, inward, up, DOOR_W / 2.0 - 0.006, 0.045, DOOR_H)
+        leaf_x = side * DOOR_W / 4.0
+        oo.add_box(lv, lf, at(leaf_back, DOOR_H / 2.0, leaf_x),
+                   tangent, inward, up, leaf_w, leaf_thick, DOOR_H)
+
+        # Three bolection-moulded panels per leaf, tall over short over tall.
+        # Bolection projects past the stiles, which is right for the period and
+        # gives the shadow lines that stop a leaf reading as a blank slab.
+        for z, h in ((0.42, 0.62), (1.13, 0.44), (1.88, 0.76)):
+            oo.add_box(lv, lf, at(leaf_front, z, leaf_x), tangent, inward, up,
+                       leaf_w - 0.09, 0.018, h + 0.05)
+            oo.add_box(lv, lf, at(leaf_front + 0.010, z, leaf_x), tangent, inward, up,
+                       leaf_w - 0.15, 0.014, h - 0.02)
+
+        knob_x = leaf_x - side * (leaf_w / 2.0 - 0.09)
+        oo.add_box(lv, lf, at(leaf_front, 1.05, knob_x), tangent, inward, up,
+                   0.075, 0.012, 0.075)
+        oo.add_box(lv, lf, at(leaf_front + 0.010, 1.05, knob_x), tangent, inward, up,
+                   0.045, 0.045, 0.045)
+
     leaves = oo.new_mesh_object(f"{PREFIX}_Door{index}_Leaves", lv, lf, coll)
     return case, leaves
 
@@ -297,9 +355,13 @@ def main():
         # so it removes the front skin of the wall and leaves a flat back for
         # the case. Passing a negative depth_out put the whole box inside the
         # room, where it cut nothing at all.
-        cutters.append(make_cutter(f"{PREFIX}_CutCase{i}", bearing, CASE_OUTER_W + 0.30,
-                                   PEDIMENT_APEX + 0.10, 0.0, coll,
-                                   depth_out=CASE_RECESS, depth_in=0.05))
+        #
+        # Shaped to the case silhouette, not a plain rectangle: a rectangle left
+        # the recess exposed above the pediment rakes and it rendered as a dark
+        # panel hanging behind the pediment.
+        cutters.append(make_outline_cutter(f"{PREFIX}_CutCase{i}", bearing,
+                                           case_outline(), coll,
+                                           depth_out=CASE_RECESS, depth_in=0.05))
         cutters.append(make_cutter(f"{PREFIX}_CutDoor{i}", bearing, DOOR_W, DOOR_H, 0.0, coll))
 
     jib_bearings = []
