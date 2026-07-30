@@ -32,6 +32,28 @@ something completed that is partial, untested, or broken — leave it
 geometry. Count the faces. Several bugs on this project failed silently and
 looked fine until measured — see `docs/learnings.md`.
 
+# Rendering
+
+**Read frames while the render runs — every ~50 frames, not just at the end.**
+Each frame is a different angle of the 360, so a fault can sit in a region no
+earlier still render ever covered. Two real problems were caught this way at 40%
+that would otherwise have surfaced only in the finished film. Checking a frame
+costs seconds.
+
+```bash
+cp renders/frames/oo_0238.png /tmp/check.png && sips -Z 1250 /tmp/check.png
+# frame N is (N-1) * 0.6 degrees into the rotation
+```
+
+**If a frame looks wrong, STOP the render, fix it, and start again.** Do not
+reason that something is "a fidelity gap rather than a bug" and let a flawed
+render finish — that judgement was made once here and it was the wrong call.
+Discarded frames are cheap; a finished film with a visible fault is not. The
+whole point of checking early is to act on what you find.
+
+Restarting costs only the frames already done. At about 21 s/frame, stopping at
+40% throws away roughly 85 minutes — always less than rendering twice.
+
 # Subagents
 
 **Always use Opus for subagents on this project.** Pass `model: 'opus'`
