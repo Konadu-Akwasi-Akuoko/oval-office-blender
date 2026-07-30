@@ -211,6 +211,53 @@ shadow-casting lights is a large, entirely wasted cost in EEVEE.
 
 ---
 
+## EEVEE Next has no bounce without a baked light probe volume
+
+This is the single most important setting for an interior in EEVEE, and it is
+easy to miss because nothing warns you.
+
+EEVEE Next's raytracing is screen-space. Light that leaves the cove and should
+come back down the walls never arrives, because the cove is not on screen when
+the wall is. The room rendered nearly black and the instinct was to blame the
+lamps — wrongly. Adding a **baked** `LIGHTPROBE_VOLUME` covering the room
+transformed it.
+
+The volume does nothing until baked:
+
+```python
+bpy.ops.object.lightprobe_cache_bake(subset='ACTIVE')  # probe must be active
+```
+
+The bake is fast — under a second for an 11,648-sample grid — so re-bake freely.
+**Any change to lights, materials or geometry needs a re-bake**, or the room is
+lit by a stale cache. Expect confusing results after editing a material if you
+forget.
+
+Sizing: slightly larger than the shell, so the samples nearest the walls fall
+outside the geometry and do not leak shadow inward.
+
+### The remaining blotches are grid interpolation, and are deliberately not fixed
+
+Soft smudges remain on the walls. The cause was pinned down rather than guessed
+at:
+
+- Hypothesis was lamp scalloping. **Tested** by going from 28 lamps to 44,
+  changing pool overlap substantially. The blotches were unchanged, so it is not
+  the lamps.
+- The **wainscot band shows them too**, and that is plain paint with no texture,
+  no stripes and no bump. So it is not a material either.
+
+That leaves irradiance-grid interpolation. Raising the grid from 16×18×10 to
+26×32×14 softened it without removing it.
+
+It is **left alone on purpose**. Right now every photon on those walls is
+probe-derived, because the cove lamps point away from them — an extreme case
+that will not exist once daylight comes through the south windows and lamps sit
+on the tables. Re-evaluate after phase 2. Raising resolution further is the fix
+if it still shows.
+
+---
+
 ## purge() must free datablocks, not just delete objects
 
 Deleting an object does **not** free its data. Blender keeps orphaned datablocks

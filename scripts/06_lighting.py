@@ -34,8 +34,12 @@ importlib.reload(oo)
 
 PREFIX = "OO_Light"
 
-COVE_LAMPS = 28
-COVE_WATTS = 55.0  # per lamp
+# 28 lamps at 1.05 m across a 31.2 m perimeter left 60 mm gaps between pools,
+# which showed as soft vertical scalloping down the wall. 44 lamps put the
+# spacing at 0.71 m against the same 1.05 m width, so each pool overlaps its
+# neighbours by a third and the wash reads as continuous.
+COVE_LAMPS = 44
+COVE_WATTS = 35.0  # per lamp, lowered to keep total output roughly constant
 COVE_COLOUR = (1.000, 0.780, 0.545)  # roughly 2900 K, warm tungsten
 
 # Lamps sit on the trough floor, behind the cornice lip. The inset must be
@@ -106,18 +110,66 @@ def build_world():
     return world
 
 
+def build_irradiance_volume(coll):
+    """A light probe volume covering the room.
+
+    Without this, EEVEE Next has essentially no diffuse bounce. Its raytracing
+    is screen-space, so light that leaves the cove and should come back down the
+    walls simply never arrives - the first lit test render was a nearly black
+    room for this reason, not because the lamps were too weak.
+
+    This is the single most important setting for an interior in EEVEE, and it
+    has to be baked. An unbaked volume does nothing at all.
+    """
+    probe = bpy.data.lightprobes.new(f"{PREFIX}_Irradiance", type="VOLUME")
+    obj = bpy.data.objects.new(f"{PREFIX}_Irradiance", probe)
+
+    # Sized slightly beyond the shell so the samples nearest the walls sit
+    # outside the geometry and do not leak shadow inward.
+    obj.location = (0.0, 0.0, oo.CEIL_CENTRE / 2.0)
+    obj.scale = (oo.SEMI_X + 0.4, oo.SEMI_Y + 0.4, oo.CEIL_CENTRE / 2.0 + 0.4)
+
+    # Sample grid. Denser across the floor plan than vertically, because the
+    # interesting gradient is the fall-off from the windows across the room, not
+    # anything happening between knee and shoulder height.
+    # A 16x18x10 grid left large blotchy smudges across the walls - the grid was
+    # coarse enough that interpolating between samples showed. These values are
+    # roughly 0.35 m spacing, which resolves cleanly. Bake time goes up but it is
+    # a one-off, not a per-frame cost.
+    probe.resolution_x = 26
+    probe.resolution_y = 32
+    probe.resolution_z = 14
+
+    probe.capture_world = True
+    probe.capture_indirect = True
+    probe.capture_emission = True
+    probe.bake_samples = 1024
+
+    # Pulls samples off surfaces before they are read, which is what stops light
+    # leaking through the walls from the world outside.
+    probe.normal_bias = 0.05
+    probe.capture_distance = 14.0
+    probe.dilation_radius = 1.0
+    probe.dilation_threshold = 0.5
+
+    coll.objects.link(obj)
+    return obj
+
+
 def main():
     oo.purge(PREFIX)
     coll = oo.get_collection()
 
     lamps = build_cove_lights(coll)
     world = build_world()
+    probe = build_irradiance_volume(coll)
 
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
     ee = scene.eevee
     ee.use_raytracing = True
     ee.use_shadows = True
+    ee.gi_diffuse_bounces = 4
     if hasattr(ee, "ray_tracing_options"):
         ee.ray_tracing_options.use_denoise = True
 
@@ -128,6 +180,7 @@ def main():
         "trough_z": round(TROUGH_Z, 3),
         "trough_inset": round(TROUGH_INSET, 3),
         "world": world.name,
+        "probe": probe.name,
         "shadows_on_cove_lamps": False,
     }
 

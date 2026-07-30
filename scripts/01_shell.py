@@ -32,6 +32,8 @@ importlib.reload(oo)
 
 PREFIX = "OO_Shell"
 
+WALL_ROWS = 10  # vertical subdivisions of the tall wallpaper run
+
 
 def wall_profile():
     """The wall section, from floor to the inner edge of the flat ceiling.
@@ -54,9 +56,13 @@ def wall_profile():
         (oo.RAIL_P, oo.DADO_H + 0.012),
         (oo.RAIL_P, oo.RAIL_H - 0.018),
         (0.0, oo.RAIL_H),
-        # Wallpaper field, the tall plain run.
-        (0.0, oo.CORNICE_BOTTOM),
     ]
+
+    # Wallpaper field, the tall plain run. Subdivided rather than left as one
+    # 3.68 m quad: phase 2 booleans doors and windows through this band, and
+    # cutting into a single enormous face produces messy n-gons along the edge.
+    for i in range(1, WALL_ROWS + 1):
+        p.append((0.0, oo.RAIL_H + (oo.CORNICE_BOTTOM - oo.RAIL_H) * i / WALL_ROWS))
 
     # Bracketed cornice. Classical order from the bottom up: bed mould, then the
     # dentil course, then the modillion band, then the projecting corona.
@@ -115,7 +121,55 @@ def build_shell(profile, coll):
     obj = oo.new_mesh_object(PREFIX, verts, faces, coll)
     oo.orient_normals(obj, inward=True)
     oo.shade_smooth_by_angle(obj)
+    add_shell_uvs(obj, profile, ts)
     return obj
+
+
+def add_shell_uvs(obj, profile, ts):
+    """UV the shell in metres: U is arc length round the room, V is up the wall.
+
+    Arc length, not the ellipse parameter. Uniform `t` covers noticeably
+    different distances at the ends of the long and short axes, so UVs built
+    from it would stretch the wallpaper stripes wider on some walls than others.
+    The stripes are 76 mm and the eye picks that up immediately.
+
+    V accumulates real distance along the profile rather than using Z, so the
+    mouldings and the cove get texture space proportional to their actual
+    surface, instead of being crushed where the section runs horizontally.
+    """
+    u_at = [0.0]
+    for i in range(1, len(ts) + 1):
+        prev = oo.ellipse_point(ts[i - 1])
+        cur = oo.ellipse_point(ts[i % len(ts)])
+        u_at.append(u_at[-1] + (cur - prev).length)
+
+    v_at = [0.0]
+    for k in range(1, len(profile)):
+        di = profile[k][0] - profile[k - 1][0]
+        dz = profile[k][1] - profile[k - 1][1]
+        v_at.append(v_at[-1] + math.hypot(di, dz))
+
+    rows = len(profile)
+    uv_layer = obj.data.uv_layers.new(name="UVMap")
+    uvs = uv_layer.uv
+
+    for poly in obj.data.polygons:
+        for loop_index in poly.loop_indices:
+            vert = obj.data.loops[loop_index].vertex_index
+            column, row = divmod(vert, rows)
+            uvs[loop_index].vector = (u_at[column], v_at[row])
+
+    # Faces bridging the seam back to column 0 would otherwise run the U
+    # coordinate backwards across the whole room. Push them past the end.
+    total_u = u_at[-1]
+    last_column = len(ts) - 1
+    for poly in obj.data.polygons:
+        cols = [obj.data.loops[li].vertex_index // rows for li in poly.loop_indices]
+        if last_column in cols and 0 in cols:
+            for loop_index in poly.loop_indices:
+                if obj.data.loops[loop_index].vertex_index // rows == 0:
+                    uv = uvs[loop_index].vector
+                    uvs[loop_index].vector = (uv[0] + total_u, uv[1])
 
 
 def build_cap(name, z, inset, coll, face_down):
@@ -133,6 +187,14 @@ def build_cap(name, z, inset, coll, face_down):
     if (normal.z < 0) != face_down:
         obj.data.flip_normals()
     oo.shade_smooth_by_angle(obj, degrees=1.0)
+
+    # Planar UVs straight from world XY, in metres, so the parquet lays out at
+    # real-world scale without any further fiddling.
+    uv_layer = obj.data.uv_layers.new(name="UVMap")
+    for poly in obj.data.polygons:
+        for loop_index in poly.loop_indices:
+            co = obj.data.vertices[obj.data.loops[loop_index].vertex_index].co
+            uv_layer.uv[loop_index].vector = (co.x, co.y)
     return obj
 
 
