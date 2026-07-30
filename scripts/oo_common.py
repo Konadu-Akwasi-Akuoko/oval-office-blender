@@ -194,6 +194,48 @@ def add_ellipsoid(verts, faces, centre, tangent, inward, up, width, height, dept
             faces.append((a, b, c, d))
 
 
+def bearing_of_point(x, y):
+    """Recover a research bearing from a point known to lie on the ellipse."""
+    return math.degrees(math.atan2(x / SEMI_X, -y / SEMI_Y))
+
+
+def add_prism(verts, faces, outline, centre, tangent, inward, up, depth, cap=True):
+    """Extrude a 2D outline along the inward normal.
+
+    `outline` is a list of (along, height) offsets from `centre`, in the plane of
+    the wall, wound counter-clockwise. Used for the arched niche cutters, where a
+    box will not do because the head is a semicircle.
+    """
+    base = len(verts)
+    n = len(outline)
+    for d in (0.0, depth):
+        for along, rise in outline:
+            verts.append(tuple(centre + tangent * along + up * rise + inward * d))
+
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append((base + i, base + j, base + n + j, base + n + i))
+
+    if cap:
+        faces.append(tuple(range(base + n - 1, base - 1, -1)))
+        faces.append(tuple(range(base + n, base + 2 * n)))
+
+
+def arch_outline(width, base_z, spring_z, radius, segments=24):
+    """Rectangle with a semicircular head, as (along, height) pairs.
+
+    Zero height is the floor, so the values can be used directly against a
+    centre placed at floor level.
+    """
+    half = width / 2.0
+    pts = [(-half, base_z), (half, base_z), (half, spring_z)]
+    for i in range(1, segments):
+        a = math.pi * i / segments
+        pts.append((half * math.cos(a), spring_z + radius * math.sin(a)))
+    pts.append((-half, spring_z))
+    return pts
+
+
 def add_box(verts, faces, centre, tangent, inward, up, width, depth, height):
     """Append an axis-aligned-in-local-frame box to running vert/face lists.
 

@@ -9,6 +9,29 @@ Append to it whenever you decide something a future agent would otherwise have
 to rediscover painfully. It is written to survive context compaction — if it is
 only in the conversation, it is already lost.
 
+# How to work on this project
+
+**Work autonomously until the whole thing is finished.** Do not stop to ask
+whether to continue, do not check in at the end of each phase, and do not hand
+back a partial result waiting for approval. Keep going until the render exists.
+
+Ask only when genuinely blocked on something no reasonable assumption can
+settle — a licensing question, a decision that would be expensive to undo, or
+credentials. Everything else: pick the sensible option, write down why in
+`docs/learnings.md`, and carry on.
+
+**Commit at every working milestone** and push. Commit messages explain the why,
+especially for bugs that failed silently.
+
+**Track the work with the task tools.** `TaskCreate` up front, `TaskUpdate` to
+`in_progress` when starting and `completed` when genuinely done. Never mark
+something completed that is partial, untested, or broken — leave it
+`in_progress` and create a task describing the blocker.
+
+**Verify before claiming.** Render it and look at the image. Raycast the
+geometry. Count the faces. Several bugs on this project failed silently and
+looked fine until measured — see `docs/learnings.md`.
+
 # Subagents
 
 **Always use Opus for subagents on this project.** Pass `model: 'opus'`

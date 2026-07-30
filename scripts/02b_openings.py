@@ -233,17 +233,29 @@ def build_pedimented_case(index, bearing, coll):
     box(at(face, 2.91), 2.15, 0.075, 0.10)  # egg-and-dart bed mould
     box(at(face, 3.02), 2.15, 0.23, 0.11)  # horizontal cornice
 
-    # Pediment. 22 degree pitch, mitred at the apex.
+    # Pediment. Built as two prisms rather than a stack of boxes: stepping boxes
+    # up the rake produced a visible staircase instead of a raking cornice.
     rise = PEDIMENT_APEX - 3.075
     run = 2.15 / 2.0
-    steps = 9
-    for side in (-1, 1):
-        for i in range(steps):
-            frac0, frac1 = i / steps, (i + 1) / steps
-            z = 3.075 + rise * (frac0 + frac1) / 2.0
-            along = side * run * (1.0 - (frac0 + frac1) / 2.0)
-            box(at(face, z, along), run / steps * 1.08, 0.20,
-                0.085 + rise / steps)
+    band = 0.115  # thickness of the raking cornice, measured vertically
+
+    pos, tangent, inward, up = oo.point_and_frame(bearing, face)
+    origin = Vector((pos.x, pos.y, 3.075))
+
+    # Tympanum: the plain triangular field. Research says no ornament in it.
+    oo.add_prism(v, f, [(-run + 0.10, 0.0), (run - 0.10, 0.0), (0.0, rise - 0.13)],
+                 origin, tangent, -inward, up, 0.085)
+
+    # Raking cornice as a chevron band following both rakes.
+    chevron = [
+        (-run, 0.0),
+        (0.0, rise),
+        (run, 0.0),
+        (run - 0.16, 0.0),
+        (0.0, rise - band * 1.32),
+        (-run + 0.16, 0.0),
+    ]
+    oo.add_prism(v, f, chevron, origin, tangent, -inward, up, 0.20)
 
     case = oo.new_mesh_object(f"{PREFIX}_Door{index}_Case", v, f, coll)
 
