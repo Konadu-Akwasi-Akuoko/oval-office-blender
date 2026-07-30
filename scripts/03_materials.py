@@ -42,7 +42,10 @@ STRIPE_M = 0.076  # three inches
 # Victorian parlour.
 CAFE_AU_LAIT = (0.640, 0.578, 0.455, 1.0)
 BUFF = (0.780, 0.730, 0.615, 1.0)
-TRIM_WHITE = (0.855, 0.838, 0.795, 1.0)
+# Cooler and brighter than the wallpaper. A warm off-white trim read as tan
+# against the warm cove light and the garden HDRI; the reference shows crisp
+# white joinery holding its own against the cream paper.
+TRIM_WHITE = (0.905, 0.898, 0.878, 1.0)
 PLASTER = (0.860, 0.842, 0.800, 1.0)
 OAK = (0.290, 0.169, 0.078, 1.0)
 WALNUT = (0.110, 0.061, 0.033, 1.0)
@@ -237,6 +240,56 @@ def assign_shell_slots(shell, wallpaper, wainscot, plaster):
     return counts
 
 
+def make_glass():
+    """Historic sash glass plus the interior ballistic panel."""
+    mat = fresh_material(f"{PREFIX}_Glass")
+    bsdf = principled(mat)
+    bsdf.inputs["Base Color"].default_value = (0.86, 0.92, 0.89, 1.0)
+    bsdf.inputs["Roughness"].default_value = 0.02
+    bsdf.inputs["IOR"].default_value = 1.52
+    bsdf.inputs["Transmission Weight"].default_value = 1.0
+    return mat
+
+
+def assign_fittings(trim, plaster, glass):
+    """Material every fitting built by phases 2, 2b and 2c.
+
+    This has to live here rather than in those scripts. They run BEFORE this one
+    - the wall must be booleaned before faces can be assigned by height - so a
+    `bpy.data.materials.get("OO_Mat_Wainscot")` inside them silently returns
+    None and the fitting ends up with no material at all. That is exactly what
+    happened to every window frame, and it showed up as brown woodwork.
+    """
+    counts = {"trim": 0, "plaster": 0, "glass": 0, "wallpaper": 0, "skipped": 0}
+    by_request = {"wainscot": (trim, "trim"),
+                  "wallpaper": (bpy.data.materials[f"{PREFIX}_Wallpaper"], "wallpaper")}
+
+    for obj in bpy.data.objects:
+        if obj.type != "MESH":
+            continue
+        requested = obj.get("oo_material")
+        if requested in by_request:
+            # Objects built by earlier phases can ask for a wall finish by name.
+            mat, key = by_request[requested]
+        elif obj.name.endswith("_Glass"):
+            mat, key = glass, "glass"
+        elif obj.name.startswith("OO_Cornice") or obj.name.endswith("_Shell"):
+            mat, key = plaster, "plaster"
+        elif obj.name.startswith("OO_Opening_Jib"):
+            # Jib doors are concealed doors, papered to match the wall. Given
+            # bright trim white they read as glowing slabs.
+            mat, key = by_request["wallpaper"]
+        elif obj.name.startswith(("OO_Opening", "OO_Niche")):
+            mat, key = trim, "trim"
+        else:
+            counts["skipped"] += 1
+            continue
+        obj.data.materials.clear()
+        obj.data.materials.append(mat)
+        counts[key] += 1
+    return counts
+
+
 def main():
     wallpaper = make_wallpaper()
     wainscot = make_paint(f"{PREFIX}_Wainscot", TRIM_WHITE, roughness=0.38)
@@ -260,12 +313,21 @@ def main():
     floor.data.materials.clear()
     floor.data.materials.append(parquet)
 
+    glass = make_glass()
+    fittings = assign_fittings(wainscot, plaster, glass)
+
     # The placeholder from the lighting test has no users left.
     tmp = bpy.data.materials.get("OO_TmpNeutral")
     if tmp is not None and tmp.users == 0:
         bpy.data.materials.remove(tmp)
 
+    unmaterialled = [o.name for o in bpy.data.objects
+                     if o.type == "MESH" and not o.data.materials]
+    if unmaterialled:
+        raise RuntimeError(f"Objects left with no material: {unmaterialled[:8]}")
+
     return {
+        "fittings_materialled": fittings,
         "materials": [wallpaper.name, wainscot.name, plaster.name, parquet.name],
         "wall_face_counts": counts,
         "cornice_faces": len(cornice.data.polygons),

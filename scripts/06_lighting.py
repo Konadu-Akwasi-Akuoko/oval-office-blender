@@ -39,7 +39,11 @@ PREFIX = "OO_Light"
 # spacing at 0.71 m against the same 1.05 m width, so each pool overlaps its
 # neighbours by a third and the wash reads as continuous.
 COVE_LAMPS = 44
-COVE_WATTS = 35.0  # per lamp, lowered to keep total output roughly constant
+# Raised once the garden HDRI replaced the placeholder sky. The HDRI is dimmer
+# than the procedural sky was, and with daylight now correctly exposed for the
+# view through the windows the interior needs real output of its own - which is
+# exactly why the room has cove lighting in the first place.
+COVE_WATTS = 90.0
 COVE_COLOUR = (1.000, 0.780, 0.545)  # roughly 2900 K, warm tungsten
 
 # Lamps sit on the trough floor, behind the cornice lip. The inset must be
@@ -101,9 +105,39 @@ def build_world():
     bg = nodes.new("ShaderNodeBackground")
     bg.location = (0, 0)
 
-    # Nishita physical sky rather than a downloaded HDRI. It costs no memory,
-    # needs no asset, and gives a correct sun position and sky gradient - which
-    # is all that is wanted, since nothing outside the windows is ever in focus.
+    # Prefer the downloaded garden HDRI, which puts something recognisable
+    # outside the windows. Fall back to a procedural sky when assets/ is absent
+    # so the scene still builds on a fresh clone.
+    #
+    # This lives here, in the lighting phase, deliberately. It was originally in
+    # 03b_pbr.py and this function silently overwrote it, because 06 runs later
+    # - the garden vanished and the sky came back with nothing reporting a
+    # problem. One phase owns the world.
+    hdri = os.path.join(_HERE or ".", "assets", "polyhaven", "hdri",
+                        "symmetrical_garden_02_2k.hdr")
+    if os.path.exists(hdri):
+        env = nodes.new("ShaderNodeTexEnvironment")
+        env.location = (-300, 0)
+        env.image = bpy.data.images.get("symmetrical_garden_02_2k.hdr") or \
+            bpy.data.images.load(hdri)
+        env.image.filepath = bpy.path.relpath(hdri)
+
+        mapping = nodes.new("ShaderNodeMapping")
+        mapping.location = (-540, 0)
+        # Swing the garden's open sky round to the south, behind the windows.
+        mapping.inputs["Rotation"].default_value = (0.0, 0.0, math.radians(158.0))
+        coord = nodes.new("ShaderNodeTexCoord")
+        coord.location = (-760, 0)
+        links.new(coord.outputs["Generated"], mapping.inputs["Vector"])
+        links.new(mapping.outputs["Vector"], env.inputs["Vector"])
+        links.new(env.outputs["Color"], bg.inputs["Color"])
+
+        # Above 1.0 because the interior is read against a correctly exposed
+        # garden. At 1.0 the room went muddy while the windows looked right.
+        bg.inputs["Strength"].default_value = 2.2
+        links.new(bg.outputs["Background"], out.inputs["Surface"])
+        return world
+
     sky = nodes.new("ShaderNodeTexSky")
     sky.location = (-300, 0)
     # Blender 5.2 replaced the "NISHITA" enum with SINGLE_SCATTERING and
