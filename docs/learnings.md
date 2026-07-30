@@ -294,6 +294,42 @@ on a later build, the world setup in `06_lighting.py` is the thing that breaks.
 
 ---
 
+## Read the reference before trusting a written description
+
+Eric Gugler's cornice is described everywhere as "deep bracketed". Built from
+that description it came out as heavy modillion brackets — and cropping the
+reference photograph to the cornice showed something completely different: two
+delicate enrichment courses, small oval paterae over a bead-and-dentil course at
+half the pitch. The invented version was wrong by about a factor of two in every
+dimension.
+
+**Crop and enlarge the reference photographs before modelling any detail.**
+`sips` does this fine and is already on the machine; PIL is not installed.
+
+```bash
+sips -c <h> <w> --cropOffset <top> <left> in.jpg --out crop.png
+sips -z <h> <w> crop.png
+```
+
+Anything repeated around the wall must be spaced by **arc length**, not by the
+ellipse parameter. Uniform `t` crowds items at the ends of the long axis and
+spreads them east and west, which reads as a mistake even to someone not looking
+for it. Use `oo_common.t_by_arclength`.
+
+---
+
+## Gitignore negations do not cross directories
+
+`*.png` plus `!reference/*.png` silently dropped everything under
+`reference/progress/`. A single `*` does not match a subdirectory, and nothing
+errors — the files just never appear in a commit. It now reads
+`!reference/**/*.png`.
+
+Worth checking `git status` actually lists a new file rather than assuming
+`git add -A` caught it.
+
+---
+
 ## Verified room measurements
 
 Confirmed against Wikipedia and the White House Historical Association.
