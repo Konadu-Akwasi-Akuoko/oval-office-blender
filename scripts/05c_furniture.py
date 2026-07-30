@@ -188,28 +188,93 @@ def flagpole(name, coll, location, wood, cloth):
     v, f = [], []
     emit(v, f, Vector((0, 0, 0.03)), 0.36, 0.36, 0.06)
     emit(v, f, Vector((0, 0, 1.55)), 0.045, 0.045, 3.00)
+    # Spear finial.
+    for k, (dz, s) in enumerate(((3.06, 0.075), (3.13, 0.050), (3.19, 0.022))):
+        emit(v, f, Vector((0, 0, dz)), s, s, 0.06)
     pole = finish(name + "_Pole", v, f, coll, wood, location)
 
-    # Cloth hanging from just below the finial, furled against the pole with a
-    # slow vertical wave. Built as a grid so it has real width - the first pass
-    # made a two-vertex-wide strip that rendered as a thin sliver.
+    # Indoor flags hang in DEEP vertical folds, gathered against the pole. The
+    # first pass used a shallow 85 mm wave over a 780 mm drop, which rendered as
+    # a flat brown board - readable as a plank, not cloth. Real depth in the
+    # folds is what makes it read, so the furl is now 3.4 waves at 180 mm.
     v, f = [], []
-    cols, rows = 9, 7
-    length, height = 0.78, 1.05
-    top = 2.96
+    cols, rows = 20, 12
+    length, height = 0.62, 1.34
+    top = 2.94
     for r in range(rows + 1):
         for c in range(cols + 1):
             u, w = c / cols, r / rows
-            # Furl deepens away from the pole; the fold runs down the drop.
-            furl = 0.085 * math.sin(u * math.pi * 1.9) * (0.35 + 0.65 * u)
-            sag = 0.10 * u * u
+            # Folds deepen away from the pole and relax toward the hem.
+            amp = 0.180 * (0.25 + 0.75 * u) * (1.0 - 0.25 * w)
+            furl = amp * math.sin(u * math.pi * 3.4)
+            sag = 0.16 * u * u + 0.05 * w
             v.append((furl, u * length, top - w * height - sag))
     for r in range(rows):
         for c in range(cols):
             a = r * (cols + 1) + c
             f.append((a, a + 1, a + cols + 2, a + cols + 1))
-    flag = finish(name + "_Cloth", v, f, coll, cloth, location)
+    flag = finish(name + "_Cloth", v, f, coll, cloth, location, soften=0.008)
     return pole, flag
+
+
+def flag_material(name, kind):
+    """US flag as stripes and canton; presidential flag as dark blue and gold.
+
+    A single muted colour was most of why the flags read as boards. Even furled,
+    the colour breakup is what says 'cloth' at this distance.
+    """
+    full = f"{PREFIX}_{name}"
+    existing = bpy.data.materials.get(full)
+    if existing is not None:
+        bpy.data.materials.remove(existing)
+    m = bpy.data.materials.new(full)
+    m.use_nodes = True
+    nodes, links = m.node_tree.nodes, m.node_tree.links
+    bsdf = nodes.get("Principled BSDF")
+    bsdf.inputs["Roughness"].default_value = 0.88
+
+    if kind == "presidential":
+        bsdf.inputs["Base Color"].default_value = (0.020, 0.035, 0.115, 1.0)
+        return m
+
+    coord = nodes.new("ShaderNodeTexCoord")
+    coord.location = (-900, 0)
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    sep.location = (-700, 0)
+    links.new(coord.outputs["Object"], sep.inputs["Vector"])
+
+    # 13 stripes across the drop.
+    mul = nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"; mul.location = (-520, 60)
+    mul.inputs[1].default_value = 9.7
+    links.new(sep.outputs["Z"], mul.inputs[0])
+    frac = nodes.new("ShaderNodeMath")
+    frac.operation = "FRACT"; frac.location = (-360, 60)
+    links.new(mul.outputs["Value"], frac.inputs[0])
+    step = nodes.new("ShaderNodeMath")
+    step.operation = "LESS_THAN"; step.location = (-200, 60)
+    step.inputs[1].default_value = 0.5
+    links.new(frac.outputs["Value"], step.inputs[0])
+
+    stripes = nodes.new("ShaderNodeMix")
+    stripes.data_type = "RGBA"; stripes.location = (-40, 60)
+    stripes.inputs[6].default_value = (0.412, 0.055, 0.090, 1.0)   # red
+    stripes.inputs[7].default_value = (0.780, 0.760, 0.720, 1.0)   # white
+    links.new(step.outputs["Value"], stripes.inputs["Factor"])
+
+    # Canton over the upper hoist.
+    canton = nodes.new("ShaderNodeMath")
+    canton.operation = "GREATER_THAN"; canton.location = (-360, -180)
+    canton.inputs[1].default_value = 2.38
+    links.new(sep.outputs["Z"], canton.inputs[0])
+
+    final = nodes.new("ShaderNodeMix")
+    final.data_type = "RGBA"; final.location = (140, 0)
+    final.inputs[7].default_value = (0.032, 0.052, 0.150, 1.0)     # navy
+    links.new(canton.outputs["Value"], final.inputs["Factor"])
+    links.new(stripes.outputs[2], final.inputs[6])
+    links.new(final.outputs[2], bsdf.inputs["Base Color"])
+    return m
 
 
 def chest(name, coll, location, az, wood):
@@ -278,8 +343,10 @@ def main():
         lamps.extend(table_lamp(f"Lamp{tag}", coll, (x, 3.95, 0.72), brass, shade, coll))
     made.extend(lamps)
 
-    for tag, x in (("US", 1.60), ("Pres", -1.60)):
-        made.extend(flagpole(f"Flag{tag}", coll, (x, -4.85, 0.0), wood, cloth))
+    us_cloth = flag_material("FlagUS", "us")
+    pres_cloth = flag_material("FlagPres", "presidential")
+    for tag, x, fabric_cloth in (("US", 1.60, us_cloth), ("Pres", -1.60, pres_cloth)):
+        made.extend(flagpole(f"Flag{tag}", coll, (x, -4.85, 0.0), wood, fabric_cloth))
 
     made.append(desk_chair(coll, (0.0, -4.85, 0.0), leather))
 
