@@ -101,13 +101,51 @@ def build_world():
     bg = nodes.new("ShaderNodeBackground")
     bg.location = (0, 0)
 
-    # Placeholder only. Replaced by a real outdoor HDRI once phase 2 has cut the
-    # windows and there is somewhere for daylight to come through.
-    bg.inputs["Color"].default_value = (0.42, 0.50, 0.62, 1.0)
-    bg.inputs["Strength"].default_value = 0.35
+    # Nishita physical sky rather than a downloaded HDRI. It costs no memory,
+    # needs no asset, and gives a correct sun position and sky gradient - which
+    # is all that is wanted, since nothing outside the windows is ever in focus.
+    sky = nodes.new("ShaderNodeTexSky")
+    sky.location = (-300, 0)
+    # Blender 5.2 replaced the "NISHITA" enum with SINGLE_SCATTERING and
+    # MULTIPLE_SCATTERING. Setting "NISHITA" raises. Multiple scattering is the
+    # better-quality successor and is what the old Nishita sky became.
+    sky.sky_type = "MULTIPLE_SCATTERING"
+    sky.sun_elevation = math.radians(34.0)
+    # Sun swung round to the south-south-east so it rakes through the windows at
+    # an angle instead of flaring straight down the lens on the opening frame.
+    sky.sun_rotation = math.radians(196.0)
+    sky.sun_intensity = 0.5
+    sky.altitude = 20.0
 
+    bg.inputs["Strength"].default_value = 0.55
+    links.new(sky.outputs["Color"], bg.inputs["Color"])
     links.new(bg.outputs["Background"], out.inputs["Surface"])
     return world
+
+
+def build_sun(coll):
+    """Direct daylight through the south windows.
+
+    The sky texture alone gives ambient but no crisp shadow. A sun lamp matched
+    to the sky's own elevation and rotation supplies the window light patches on
+    the floor, which are most of what sells a daylit interior.
+    """
+    data = bpy.data.lights.new(f"{PREFIX}_Sun", type="SUN")
+    data.energy = 3.4
+    data.angle = math.radians(0.9)  # slightly soft edges, as real sunlight
+    data.color = (1.0, 0.957, 0.898)
+
+    obj = bpy.data.objects.new(data.name, data)
+    elevation, rotation = math.radians(34.0), math.radians(196.0)
+    direction = Vector((
+        -math.sin(rotation) * math.cos(elevation),
+        -math.cos(rotation) * math.cos(elevation),
+        -math.sin(elevation),
+    ))
+    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    obj.location = (0.0, -12.0, 7.0)
+    coll.objects.link(obj)
+    return obj
 
 
 def build_irradiance_volume(coll):
@@ -162,6 +200,7 @@ def main():
 
     lamps = build_cove_lights(coll)
     world = build_world()
+    sun = build_sun(coll)
     probe = build_irradiance_volume(coll)
 
     scene = bpy.context.scene
@@ -180,6 +219,8 @@ def main():
         "trough_z": round(TROUGH_Z, 3),
         "trough_inset": round(TROUGH_INSET, 3),
         "world": world.name,
+        "sun": sun.name,
+        "sun_energy": sun.data.energy,
         "probe": probe.name,
         "shadows_on_cove_lamps": False,
     }

@@ -211,6 +211,53 @@ shadow-casting lights is a large, entirely wasted cost in EEVEE.
 
 ---
 
+## Booleans: use MANIFOLD. The EXACT solver empties this mesh
+
+**In Blender 5.2 the EXACT boolean solver reduces the solidified wall to ZERO
+faces.** No error, no warning. Measured with a plain primitive cube as the
+cutter, so it is the solver, not the geometry:
+
+| Solver | 8704 faces becomes | Hole cut? |
+|---|---|---|
+| EXACT | **0** | — |
+| FLOAT | 8673 | yes |
+| MANIFOLD | 8675 | yes |
+
+Solver names also changed: it is now `FLOAT` / `EXACT` / `MANIFOLD`. `FAST` no
+longer exists and raises an enum error. Manifold is the right default here
+because solidify already guarantees a watertight mesh.
+
+`02b_openings.py` asserts the face count is non-zero after every boolean, so
+this can never fail silently again.
+
+### Solidify offset must be -1.0
+
+Shell normals point INTO the room. `offset = +1.0` extrudes inward: the room
+silently shrinks by the full wall thickness on every side, fittings end up
+buried behind the new surface, and the cutters miss the wall entirely. Nothing
+errors.
+
+Verified by raycast — `offset = -1.0` holds the inner face at exactly -5.461 and
+grows outward to -5.911. Check the INNER face by raycasting the object;
+`min(vertex.y)` reads the new outer surface and rejects a correct result.
+
+### The shell is split into wall and cornice for exactly this reason
+
+`01_shell.py` builds `OO_Shell_Wall` and `OO_Shell_Cornice` separately, splitting
+at `CORNICE_BOTTOM`. Solidifying the cornice outward by 450 mm self-intersects,
+because its mouldings have features far smaller than that. Every opening is
+below 4.05 m and the cornice starts at 4.56 m, so only the wall is ever cut.
+
+**Do not merge them back into one object.**
+
+### Isolate the mesh when raycasting to verify a cut
+
+`scene.ray_cast` hits anything in the scene. An early diagnostic read the window
+frames sitting at y -5.2 and reported the wall in the wrong place. Use
+`obj.ray_cast`, which is object-local, or purge the fittings first.
+
+---
+
 ## EEVEE Next has no bounce without a baked light probe volume
 
 This is the single most important setting for an interior in EEVEE, and it is

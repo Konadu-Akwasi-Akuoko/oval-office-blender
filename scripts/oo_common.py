@@ -89,12 +89,27 @@ def ellipse_point(t, inset=0.0, semi_x=SEMI_X, semi_y=SEMI_Y):
 
 
 def bearing_to_t(deg):
-    """Convert a bearing in degrees clockwise from due south to ellipse `t`.
+    """Convert a research bearing to this module's ellipse parameter `t`.
 
-    Due south is -Y, which is t = -pi/2. Bearings increase clockwise when viewed
-    from above, which is decreasing t.
+    docs/research-findings.md parametrises the room as
+        x = SEMI_X * sin(b),  y = -SEMI_Y * cos(b)
+    with `b` in degrees from due south, positive toward the EAST. This module
+    uses the conventional
+        x = SEMI_X * cos(t),  y = SEMI_Y * sin(t)
+
+    The two agree when t = b - pi/2. Every bearing quoted in the research is in
+    the first convention, so always come through here rather than converting by
+    hand - the sign is easy to get backwards and the failure is a mirrored room,
+    which is surprisingly hard to notice.
     """
-    return -math.pi / 2 - math.radians(deg)
+    return math.radians(deg) - math.pi / 2.0
+
+
+def point_and_frame(deg, inset=0.0):
+    """Position and local axes at a research bearing. The workhorse for fittings."""
+    t = bearing_to_t(deg)
+    tangent, inward, up = local_frame(t)
+    return ellipse_point(t, inset), tangent, inward, up
 
 
 def t_positions(count=SEG):

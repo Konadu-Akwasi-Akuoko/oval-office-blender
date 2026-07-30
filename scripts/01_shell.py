@@ -114,7 +114,7 @@ def wall_profile():
     return p
 
 
-def build_shell(profile, coll):
+def build_shell(profile, coll, name=PREFIX):
     ts = oo.t_positions()
     rows = len(profile)
 
@@ -132,7 +132,7 @@ def build_shell(profile, coll):
             b = j * rows + k
             faces.append((a, a + 1, b + 1, b))
 
-    obj = oo.new_mesh_object(PREFIX, verts, faces, coll)
+    obj = oo.new_mesh_object(name, verts, faces, coll)
     oo.orient_normals(obj, inward=True)
     oo.shade_smooth_by_angle(obj)
     add_shell_uvs(obj, profile, ts)
@@ -231,15 +231,30 @@ def main():
             bpy.data.objects.remove(obj, do_unlink=True)
 
     profile = wall_profile()
-    shell = build_shell(profile, coll)
+
+    # Split the sweep into two objects at the bottom of the cornice.
+    #
+    # Phase 2b solidifies the wall to give it real thickness before booleaning
+    # the openings. Solidifying the CORNICE outward by 450 mm self-intersects -
+    # its mouldings have features far smaller than that - which makes
+    # inside/outside ill-defined and collapses the mesh to a handful of faces.
+    #
+    # Every opening is below 4.05 m and the cornice starts at 4.56 m, so nothing
+    # is lost by cutting only the wall. The cornice stays a clean surface and is
+    # never booleaned.
+    split = next(i for i, (_, z) in enumerate(profile) if z >= oo.CORNICE_BOTTOM)
+
+    wall = build_shell(profile[: split + 1], coll, name=PREFIX + "_Wall")
+    cornice = build_shell(profile[split:], coll, name=PREFIX + "_Cornice")
     floor = build_cap("OO_Floor", 0.0, 0.0, coll, face_down=False)
     ceiling = build_cap("OO_Ceiling", oo.CEIL_CENTRE, oo.CEIL_INSET, coll, face_down=True)
 
     return {
         "purged": removed,
         "profile_points": len(profile),
-        "shell_verts": len(shell.data.vertices),
-        "shell_faces": len(shell.data.polygons),
+        "split_at_z": profile[split][1],
+        "wall_faces": len(wall.data.polygons),
+        "cornice_faces": len(cornice.data.polygons),
         "floor_verts": len(floor.data.vertices),
         "ceiling_verts": len(ceiling.data.vertices),
         "ceiling_semi_x": round(oo.SEMI_X - oo.CEIL_INSET, 3),

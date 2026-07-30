@@ -243,8 +243,14 @@ def main():
     plaster = make_paint(f"{PREFIX}_Plaster", PLASTER, roughness=0.72)
     parquet = make_parquet()
 
-    shell = bpy.data.objects["OO_Shell"]
-    counts = assign_shell_slots(shell, wallpaper, wainscot, plaster)
+    wall = bpy.data.objects["OO_Shell_Wall"]
+    counts = assign_shell_slots(wall, wallpaper, wainscot, plaster)
+
+    # The cornice is a separate object since phase 1, so it takes plaster whole
+    # rather than needing a per-face split.
+    cornice = bpy.data.objects["OO_Shell_Cornice"]
+    cornice.data.materials.clear()
+    cornice.data.materials.append(plaster)
 
     ceiling = bpy.data.objects["OO_Ceiling"]
     ceiling.data.materials.clear()
@@ -261,9 +267,10 @@ def main():
 
     return {
         "materials": [wallpaper.name, wainscot.name, plaster.name, parquet.name],
-        "shell_face_counts": counts,
+        "wall_face_counts": counts,
+        "cornice_faces": len(cornice.data.polygons),
         "stripe_width_m": STRIPE_M,
-        "shell_has_uvs": bool(shell.data.uv_layers),
+        "wall_has_uvs": bool(wall.data.uv_layers),
         "floor_has_uvs": bool(floor.data.uv_layers),
     }
 
