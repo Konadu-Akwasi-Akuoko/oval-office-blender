@@ -234,7 +234,45 @@ def flag_material(name, kind):
     bsdf.inputs["Roughness"].default_value = 0.88
 
     if kind == "presidential":
-        bsdf.inputs["Base Color"].default_value = (0.020, 0.035, 0.115, 1.0)
+        # Dark blue alone rendered as a board, exactly as the US flag did before
+        # its stripes went on. The presidential flag carries a large gold seal
+        # and a gold fringe, and that breakup is what makes it read as cloth.
+        coord = nodes.new("ShaderNodeTexCoord")
+        coord.location = (-900, 0)
+        sep = nodes.new("ShaderNodeSeparateXYZ")
+        sep.location = (-720, 0)
+        links.new(coord.outputs["Object"], sep.inputs["Vector"])
+
+        # Distance from the seal centre, measured in the flag's own plane.
+        dy = nodes.new("ShaderNodeMath")
+        dy.operation = "SUBTRACT"; dy.location = (-560, -120)
+        dy.inputs[1].default_value = 2.34
+        links.new(sep.outputs["Z"], dy.inputs[0])
+
+        sq1 = nodes.new("ShaderNodeMath")
+        sq1.operation = "MULTIPLY"; sq1.location = (-400, -60)
+        links.new(sep.outputs["Y"], sq1.inputs[0])
+        links.new(sep.outputs["Y"], sq1.inputs[1])
+        sq2 = nodes.new("ShaderNodeMath")
+        sq2.operation = "MULTIPLY"; sq2.location = (-400, -200)
+        links.new(dy.outputs["Value"], sq2.inputs[0])
+        links.new(dy.outputs["Value"], sq2.inputs[1])
+        add = nodes.new("ShaderNodeMath")
+        add.operation = "ADD"; add.location = (-240, -120)
+        links.new(sq1.outputs["Value"], add.inputs[0])
+        links.new(sq2.outputs["Value"], add.inputs[1])
+
+        seal = nodes.new("ShaderNodeMath")
+        seal.operation = "LESS_THAN"; seal.location = (-80, -120)
+        seal.inputs[1].default_value = 0.055
+        links.new(add.outputs["Value"], seal.inputs[0])
+
+        mix = nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"; mix.location = (120, 0)
+        mix.inputs[6].default_value = (0.020, 0.035, 0.115, 1.0)   # navy
+        mix.inputs[7].default_value = (0.420, 0.330, 0.130, 1.0)   # gold seal
+        links.new(seal.outputs["Value"], mix.inputs["Factor"])
+        links.new(mix.outputs[2], bsdf.inputs["Base Color"])
         return m
 
     coord = nodes.new("ShaderNodeTexCoord")

@@ -323,6 +323,15 @@ def build_pedimented_case(index, bearing, coll):
         oo.add_box(lv, lf, at(leaf_front + 0.010, 1.05, knob_x), tangent, inward, up,
                    0.045, 0.045, 0.045)
 
+    # Backing panel filling the opening behind the leaves.
+    #
+    # The doorway is cut clean through a 450 mm wall to the world outside, so
+    # daylight poured through the 12 mm gap between the leaves and rendered as a
+    # bright vertical slit down the middle of both doors. This blocks it and
+    # gives the doorway somewhere to be - a dim space beyond, rather than sky.
+    oo.add_box(lv, lf, at(face - 0.16, DOOR_H / 2.0, 0.0), tangent, inward, up,
+               DOOR_W + 0.10, 0.04, DOOR_H + 0.08)
+
     leaves = oo.new_mesh_object(f"{PREFIX}_Door{index}_Leaves", lv, lf, coll)
     return case, leaves
 
