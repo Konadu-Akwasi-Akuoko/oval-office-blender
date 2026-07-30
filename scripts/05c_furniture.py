@@ -66,12 +66,26 @@ def emit(v, f, centre, w, d, h, ax=X, ay=Y):
     oo.add_box(v, f, centre, ax, ay, Z, w, d, h)
 
 
-def finish(name, v, f, coll, material, location=(0, 0, 0), az=0.0):
+def finish(name, v, f, coll, material, location=(0, 0, 0), az=0.0, soften=0.0):
     obj = oo.new_mesh_object(f"{PREFIX}_{name}", v, f, coll)
     obj.location = location
     obj.rotation_euler = (0.0, 0.0, math.radians(-az))
     obj.data.materials.append(material)
     obj["oo_material"] = "keep"
+
+    if soften:
+        # Upholstery has no sharp arrises. Without this the sofas read as a
+        # stack of plain boxes, which was by some distance the weakest thing in
+        # the render. A bevel is far cheaper than modelling real curvature and
+        # does most of the work, because what gives fabric away at this distance
+        # is the highlight running along a rounded edge.
+        bev = obj.modifiers.new("Soften", "BEVEL")
+        bev.width = soften
+        bev.segments = 3
+        bev.limit_method = "ANGLE"
+        bev.angle_limit = math.radians(40.0)
+        bev.harden_normals = False
+        oo.shade_smooth_by_angle(obj, degrees=42.0)
     return obj
 
 
@@ -82,15 +96,26 @@ def sofa(name, coll, location, az, fabric, wood):
     emit(v, f, Vector((0, 0, 0.20)), w, d, 0.40)                     # skirt to floor
     emit(v, f, Vector((0, 0, 0.46)), w - 0.30, d - 0.10, 0.14)        # seat platform
     for i in (-1, 0, 1):
-        emit(v, f, Vector((i * 0.68, -0.03, 0.575)), 0.64, d - 0.20, 0.16)  # cushions
+        emit(v, f, Vector((i * 0.68, -0.03, 0.578)), 0.63, d - 0.21, 0.17)  # cushions
     emit(v, f, Vector((0, d / 2.0 - 0.14, 0.62)), w, 0.24, 0.46)      # back
+    for i in (-1, 0, 1):
+        emit(v, f, Vector((i * 0.68, d / 2.0 - 0.24, 0.70)), 0.62, 0.16, 0.34)  # back cushions
+
+    # Rolled arms, as a real half-cylinder rather than stepped boxes. The steps
+    # were readable as steps.
     for side in (-1, 1):
-        # Rolled arms, as a stack of narrowing boxes - cheap, and the roll reads.
-        for k, (dz, dh) in enumerate(((0.0, 0.30), (0.30, 0.09), (0.39, 0.05))):
-            inset = k * 0.03
-            emit(v, f, Vector((side * (w / 2.0 - 0.12), 0.0, 0.46 + dz + dh / 2.0)),
-                 0.24 - inset, d - 0.06 - inset, dh)
-    return finish(name, v, f, coll, fabric, location, az)
+        cx = side * (w / 2.0 - 0.13)
+        segments, radius = 9, 0.135
+        for k in range(segments):
+            a0 = math.pi * k / segments
+            a1 = math.pi * (k + 1) / segments
+            zc = 0.635 + radius * (math.sin(a0) + math.sin(a1)) / 2.0
+            xc = cx + radius * (math.cos(a0) + math.cos(a1)) / 2.0 * side * -1.0
+            seg_w = abs(radius * (math.cos(a0) - math.cos(a1))) + 0.012
+            seg_h = abs(radius * (math.sin(a0) - math.sin(a1))) + 0.030
+            emit(v, f, Vector((xc, 0.0, zc)), seg_w, d - 0.04, seg_h)
+        emit(v, f, Vector((cx, 0.0, 0.545)), 0.27, d - 0.04, 0.19)
+    return finish(name, v, f, coll, fabric, location, az, soften=0.030)
 
 
 def armchair(name, coll, location, az, fabric):
@@ -98,10 +123,21 @@ def armchair(name, coll, location, az, fabric):
     v, f = [], []
     emit(v, f, Vector((0, 0, 0.20)), w, d, 0.40)
     emit(v, f, Vector((0, -0.02, 0.47)), w - 0.16, d - 0.16, 0.12)
+    emit(v, f, Vector((0, -0.02, 0.565)), w - 0.20, d - 0.22, 0.10)   # seat cushion
     emit(v, f, Vector((0, d / 2.0 - 0.11, 0.72)), w, 0.20, 0.62)
+    emit(v, f, Vector((0, d / 2.0 - 0.21, 0.70)), w - 0.16, 0.14, 0.36)  # back cushion
     for side in (-1, 1):
-        emit(v, f, Vector((side * (w / 2.0 - 0.09), -0.02, 0.60)), 0.18, d - 0.14, 0.30)
-    return finish(name, v, f, coll, fabric, location, az)
+        cx = side * (w / 2.0 - 0.09)
+        for k in range(7):
+            a0, a1 = math.pi * k / 7.0, math.pi * (k + 1) / 7.0
+            zc = 0.635 + 0.105 * (math.sin(a0) + math.sin(a1)) / 2.0
+            xc = cx + 0.105 * (math.cos(a0) + math.cos(a1)) / 2.0 * side * -1.0
+            emit(v, f, Vector((xc, -0.02, zc)),
+                 abs(0.105 * (math.cos(a0) - math.cos(a1))) + 0.012,
+                 d - 0.14,
+                 abs(0.105 * (math.sin(a0) - math.sin(a1))) + 0.028)
+        emit(v, f, Vector((cx, -0.02, 0.545)), 0.21, d - 0.14, 0.17)
+    return finish(name, v, f, coll, fabric, location, az, soften=0.026)
 
 
 def coffee_table(coll, location, az, wood):

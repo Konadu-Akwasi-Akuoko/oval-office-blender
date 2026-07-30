@@ -328,12 +328,35 @@ def build_pedimented_case(index, bearing, coll):
 
 
 def build_jib_door(index, x, y, coll):
-    """Flush door, no case, no pediment. Reads as a panel in the wall."""
+    """Flush door, papered to match the wall, with no case and no pediment.
+
+    A plain slab rendered as a featureless smudge - readable as *something* but
+    not as a door. Jib doors really are near-invisible, but they still have a
+    shadow gap round the leaf and panel lines, and those are what tell the eye
+    it is a door rather than a mark on the wallpaper.
+    """
     bearing = bearing_of_point(x, y)
     v, f = [], []
     pos, tangent, inward, up = oo.point_and_frame(bearing, 0.004)
     centre = Vector((pos.x, pos.y, DOOR_H / 2.0))
     oo.add_box(v, f, centre, tangent, inward, up, DOOR_W, 0.030, DOOR_H)
+
+    face = 0.004 + 0.030
+    front = oo.ellipse_point(oo.bearing_to_t(bearing), face)
+    base = Vector((front.x, front.y, 0.0))
+
+    # Shadow gap: a thin reveal round three sides of the leaf.
+    for along, z, w, h in ((-DOOR_W / 2.0, DOOR_H / 2.0, 0.012, DOOR_H),
+                           (DOOR_W / 2.0, DOOR_H / 2.0, 0.012, DOOR_H),
+                           (0.0, DOOR_H, DOOR_W + 0.024, 0.012)):
+        oo.add_box(v, f, base + tangent * along + up * z,
+                   tangent, -inward, up, w, 0.014, h)
+
+    # Two flush panel lines, papered over as the real ones are.
+    for z, h in ((0.72, 1.16), (1.86, 0.86)):
+        oo.add_box(v, f, base + up * z, tangent, inward, up,
+                   DOOR_W - 0.16, 0.005, h)
+
     obj = oo.new_mesh_object(f"{PREFIX}_Jib{index}", v, f, coll)
     return obj, bearing
 
