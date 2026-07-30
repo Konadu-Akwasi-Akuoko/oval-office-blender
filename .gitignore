@@ -1,0 +1,22 @@
+# Licensed assets — Envato files are tied to a personal subscription.
+# This repo is public. These must never be committed.
+assets/
+
+# Blender
+*.blend1
+*.blend2
+*.blend@
+
+# Renders
+renders/
+*.mp4
+*.mkv
+*.exr
+*.png
+
+# Reference images are public domain and ARE committed, so re-include them.
+!reference/*.jpg
+!reference/*.png
+
+# macOS
+.DS_Store
