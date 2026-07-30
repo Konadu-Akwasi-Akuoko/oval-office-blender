@@ -3,6 +3,11 @@
 assets/
 
 # Blender
+# The .blend is a BUILD ARTIFACT, not source. scripts/ regenerates it from
+# nothing. Committing it would put a growing binary in a public repo that
+# still would not open correctly, since assets/ is excluded anyway.
+# See docs/learnings.md, "The .blend is not source".
+*.blend
 *.blend1
 *.blend2
 *.blend@

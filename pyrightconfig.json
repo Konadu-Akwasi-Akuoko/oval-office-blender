@@ -1,0 +1,8 @@
+{
+  "include": ["scripts"],
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "_comment": "bpy, bmesh and mathutils only exist inside Blender's embedded interpreter, so they can never resolve here. Run 'uv add --dev fake-bpy-module-latest' if real autocomplete is wanted."
+}

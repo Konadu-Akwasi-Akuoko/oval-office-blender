@@ -1,3 +1,26 @@
+# Read this first
+
+**[`docs/learnings.md`](docs/learnings.md) holds every decision made on this
+project and why.** Read it before doing any work here. It records the locked
+decisions, the verified measurements, the axis convention, which sites block
+WebFetch, and the traps that have already cost time.
+
+Append to it whenever you decide something a future agent would otherwise have
+to rediscover painfully. It is written to survive context compaction — if it is
+only in the conversation, it is already lost.
+
+# Subagents
+
+**Always use Opus for subagents on this project.** Pass `model: 'opus'`
+explicitly on every `agent()` call in a workflow and on every `Agent` tool call,
+rather than relying on inheritance from the session model.
+
+The work here is research judgement — dating a photograph correctly, rejecting a
+sofa that is the wrong period, estimating a dimension from a reference — and a
+smaller model gets those wrong in ways that are expensive to detect later. A bad
+measurement propagates into geometry and is only caught when something looks
+wrong in a render.
+
 # Blender MCP setup
 
 Notes for working with the official Blender MCP server on this machine.
