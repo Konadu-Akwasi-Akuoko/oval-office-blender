@@ -268,6 +268,12 @@ def assign_fittings(trim, plaster, glass):
         if obj.type != "MESH":
             continue
         requested = obj.get("oo_material")
+        if requested is not None and requested not in by_request:
+            # Either the object materialled itself ("keep") or it is asking for
+            # something 03b_pbr builds later, like the Poly Haven dark wood.
+            # Leave it alone; build_all.py checks nothing is left bare at the end.
+            counts["skipped"] += 1
+            continue
         if requested in by_request:
             # Objects built by earlier phases can ask for a wall finish by name.
             mat, key = by_request[requested]
@@ -320,11 +326,6 @@ def main():
     tmp = bpy.data.materials.get("OO_TmpNeutral")
     if tmp is not None and tmp.users == 0:
         bpy.data.materials.remove(tmp)
-
-    unmaterialled = [o.name for o in bpy.data.objects
-                     if o.type == "MESH" and not o.data.materials]
-    if unmaterialled:
-        raise RuntimeError(f"Objects left with no material: {unmaterialled[:8]}")
 
     return {
         "fittings_materialled": fittings,

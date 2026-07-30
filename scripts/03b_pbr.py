@@ -154,6 +154,21 @@ def main():
     if wood is not None:
         applied["dark_wood"] = wood.name
 
+    # Hand out the PBR materials to anything that asked for one by name. Earlier
+    # phases cannot look these up directly, because this script runs after them
+    # and a lookup would silently return None.
+    requests = {"darkwood": wood, "velvet": velvet}
+    handed = 0
+    for obj in bpy.data.objects:
+        if obj.type != "MESH":
+            continue
+        mat = requests.get(obj.get("oo_material"))
+        if mat is not None:
+            obj.data.materials.clear()
+            obj.data.materials.append(mat)
+            handed += 1
+    applied["by_request"] = handed
+
     # The world is owned by 06_lighting.py, not here.
     return {"applied": applied, "missing": missing,
             "hint": "run python3 scripts/fetch_polyhaven.py" if missing else None}

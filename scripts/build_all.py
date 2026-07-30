@@ -37,6 +37,7 @@ PHASES = [
     "02b_openings.py",   # cut windows and doors, build sashes and cases
     "02c_niches.py",     # four arch-and-shell units
     "04_fireplace.py",   # Taft mantel and breast
+    "05_desk.py",        # Resolute desk
     "03_materials.py",   # procedural materials, and ALL fitting assignment
     "03b_pbr.py",        # Poly Haven PBR overrides
     "06_lighting.py",    # cove lamps, sun, world/HDRI, probe volume
@@ -59,7 +60,8 @@ def main(phases=None):
     # Clear everything the build owns, so a re-run cannot stack duplicates or
     # leave a half-cut wall behind.
     for prefix in ("OO_Shell", "OO_Opening", "OO_Niche", "OO_Cornice",
-                   "OO_Fire", "OO_Light", "OO_Cam", "OO_Floor", "OO_Ceiling"):
+                   "OO_Fire", "OO_Desk", "OO_Furn", "OO_Rug",
+                   "OO_Light", "OO_Cam", "OO_Floor", "OO_Ceiling"):
         oo.purge(prefix)
     oo.purge_orphans()
 
@@ -78,6 +80,12 @@ def main(phases=None):
     baked = bake_probe()
 
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+    bare = [o.name for o in meshes if not o.data.materials]
+    if bare:
+        # Checked here, at the very end, because phases hand materials to each
+        # other by request and no single phase can assert this on its own.
+        raise RuntimeError(f"Objects left with no material: {bare[:10]}")
+
     return {
         "phases": results,
         "seconds": timings,
