@@ -37,7 +37,9 @@ COVE_SPRING = 5.055  # 16 ft 7 in, where the cornice ends and the cove begins
 BASEBOARD_H = 0.180
 DADO_H = 0.880  # top of the wainscot panel field
 RAIL_H = 0.940  # top of the chair rail; wallpaper starts here
-CORNICE_BOTTOM = 4.620
+# Photogrammetric solve puts the cornice at 0.47 m tall with its bottom at
+# 4.58 m and the cove spring at 5.05 m. See docs/research-findings.md.
+CORNICE_BOTTOM = 4.560
 
 # How far each band projects inward from the plaster wall plane. The ellipse
 # itself is the wallpaper plane, so these are all positive (toward the centre).
@@ -349,7 +351,14 @@ def shade_smooth_by_angle(obj, degrees=31.0):
     """Smooth the sweep around the ellipse while keeping profile edges crisp."""
     for poly in obj.data.polygons:
         poly.use_smooth = True
+    # The operator acts on the SELECTION, not just the active object. Leaving a
+    # stale selection meant it tried to add a Smooth by Angle modifier to
+    # whatever was selected before - a light probe, in one case, which warned
+    # harmlessly but also meant the intended mesh might not be smoothed at all.
     prev = bpy.context.view_layer.objects.active
+    prev_selected = [o for o in bpy.context.selected_objects]
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
     try:
         bpy.ops.object.shade_auto_smooth(angle=math.radians(degrees))
@@ -359,4 +368,10 @@ def shade_smooth_by_angle(obj, degrees=31.0):
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = math.radians(degrees)
     finally:
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in prev_selected:
+            try:
+                o.select_set(True)
+            except ReferenceError:
+                pass
         bpy.context.view_layer.objects.active = prev

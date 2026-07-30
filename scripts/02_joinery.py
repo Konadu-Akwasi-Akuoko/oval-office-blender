@@ -37,33 +37,46 @@ importlib.reload(oo)
 
 PREFIX = "OO_Cornice"
 
-# Measured off reference/Barack_Obama_in_the_Oval_Office_view_from_the_west_corridor.jpg,
-# cropped to the cornice and enlarged. The first pass invented a heavy bracketed
-# cornice from Gugler's description of it as "deep bracketed" - the photograph
-# shows something far more delicate: two fine enrichment courses, an upper row of
-# small oval bosses and a bead-and-dentil course below at about half the pitch.
-# Chunky modillions were wrong by roughly a factor of two in every dimension.
+# All from the photogrammetric solve in docs/research-findings.md, which counted
+# repeats by band-pass zero-crossing on the unwrapped cornice ring at four radii
+# in an upward-looking 2022 ceiling photograph, cross-checked by DFT.
+#
+# Two earlier passes were wrong. The first invented heavy modillion brackets from
+# Gugler's "deep bracketed cornice". The second read a low-angle crop as oval
+# bosses over a dentil course. It is neither: a Corinthian modillion cornice with
+# a coffered soffit, each coffer holding a rosette, separated by fluted bracket
+# blocks, over an egg-and-dart ovolo at exactly twice the frequency.
+#
+# The 2:1 ratio spotted in the second pass was right. Everything else was not.
 
-# Lower course: fine dentils, at the profile step at inset 0.150.
-DENTIL_W = 0.052
-DENTIL_H = 0.046
-DENTIL_D = 0.024
-DENTIL_PITCH = 0.095
-DENTIL_Z = 4.748
-DENTIL_FACE = 0.150
+MODILLION_COUNT = 126  # 126 +/- 2 from the solve
+MODILLION_W = 0.080  # fluted bracket block, ~35% of the bay
+MODILLION_H = 0.100
+MODILLION_D = 0.070
+MODILLION_Z = 4.880
+MODILLION_FACE = 0.215
 
-# Upper course: oval paterae, at roughly twice the dentil pitch.
-OVAL_W = 0.086
-OVAL_H = 0.056
-OVAL_D = 0.030
-OVAL_PITCH = 0.190
-OVAL_Z = 4.858
-OVAL_FACE = 0.230
+ROSETTE_D = 0.085  # patera sunk in each coffer between the brackets
+ROSETTE_H = 0.085
+ROSETTE_PROJ = 0.022
+ROSETTE_Z = 4.895
+ROSETTE_FACE = 0.200
+
+EGG_COUNT = MODILLION_COUNT * 2  # 252, confirmed by a DFT peak at k ~ 248-258
+EGG_W = 0.072
+EGG_H = 0.052
+EGG_D = 0.028
+EGG_Z = 4.805
+EGG_FACE = 0.160
 
 
-def build_course(name, count, z, face_inset, coll, box=None, oval=None, taper=0.0):
+def build_course(name, count, z, face_inset, coll, box=None, oval=None, taper=0.0,
+                 half_bay_offset=False):
     verts, faces = [], []
-    for t in oo.t_by_arclength(count):
+    positions = oo.t_by_arclength(count)
+    if half_bay_offset:
+        positions = oo.t_by_arclength(count * 2)[1::2]
+    for t in positions:
         tangent, inward, up = oo.local_frame(t)
         anchor = oo.ellipse_point(t, face_inset)
         centre = Vector((anchor.x, anchor.y, z))
@@ -93,33 +106,41 @@ def main():
     coll = oo.get_collection()
 
     circumference = oo.perimeter()
-    n_dentils = int(round(circumference / DENTIL_PITCH))
-    n_ovals = int(round(circumference / OVAL_PITCH))
 
-    dentils = build_course(
-        f"{PREFIX}_Dentils", n_dentils, DENTIL_Z, DENTIL_FACE, coll,
-        box=(DENTIL_W, DENTIL_H, DENTIL_D), taper=0.003,
+    modillions = build_course(
+        f"{PREFIX}_Modillions", MODILLION_COUNT, MODILLION_Z, MODILLION_FACE, coll,
+        box=(MODILLION_W, MODILLION_H, MODILLION_D), taper=0.004,
     )
-    ovals = build_course(
-        f"{PREFIX}_Ovals", n_ovals, OVAL_Z, OVAL_FACE, coll,
-        oval=(OVAL_W, OVAL_H, OVAL_D),
+
+    # Rosettes sit in the coffers BETWEEN the brackets, so the ring is offset by
+    # half a bay. Without the offset every patera would be hidden behind a block.
+    rosettes = build_course(
+        f"{PREFIX}_Rosettes", MODILLION_COUNT, ROSETTE_Z, ROSETTE_FACE, coll,
+        oval=(ROSETTE_D, ROSETTE_H, ROSETTE_PROJ), half_bay_offset=True,
     )
-    oo.shade_smooth_by_angle(ovals, degrees=50.0)
+    oo.shade_smooth_by_angle(rosettes, degrees=50.0)
+
+    eggs = build_course(
+        f"{PREFIX}_EggAndDart", EGG_COUNT, EGG_Z, EGG_FACE, coll,
+        oval=(EGG_W, EGG_H, EGG_D),
+    )
+    oo.shade_smooth_by_angle(eggs, degrees=50.0)
 
     plaster = bpy.data.materials.get("OO_Mat_Plaster")
-    for obj in (dentils, ovals):
+    parts = (modillions, rosettes, eggs)
+    for obj in parts:
         obj.data.materials.clear()
         if plaster is not None:
             obj.data.materials.append(plaster)
 
     return {
         "perimeter_m": round(circumference, 3),
-        "dentils": n_dentils,
-        "dentil_pitch_m": round(circumference / n_dentils, 4),
-        "ovals": n_ovals,
-        "oval_pitch_m": round(circumference / n_ovals, 4),
-        "dentils_per_oval": round(n_dentils / n_ovals, 2),
-        "total_faces": len(dentils.data.polygons) + len(ovals.data.polygons),
+        "modillions": MODILLION_COUNT,
+        "modillion_pitch_m": round(circumference / MODILLION_COUNT, 4),
+        "rosettes": MODILLION_COUNT,
+        "eggs": EGG_COUNT,
+        "egg_pitch_m": round(circumference / EGG_COUNT, 4),
+        "total_faces": sum(len(o.data.polygons) for o in parts),
     }
 
 

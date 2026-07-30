@@ -294,6 +294,62 @@ on a later build, the world setup in `06_lighting.py` is the thing that breaks.
 
 ---
 
+## The cornice took three passes. Read docs/research-findings.md before touching it
+
+It is a **Corinthian modillion cornice**. There is **no dentil course anywhere in
+it**. What looks like dentils in low-angle photographs is the coffered modillion
+soffit seen edge-on.
+
+| Pass | What was built | Why it was wrong |
+|---|---|---|
+| 1 | Heavy modillion brackets | Invented from Gugler's phrase "deep bracketed cornice" |
+| 2 | Oval bosses over a dentil course | Read off a low-angle crop; right 2:1 ratio, wrong forms and counts |
+| 3 | 126 coffered bays, 252 egg-and-dart | Photogrammetric solve on an upward-looking ceiling photograph |
+
+The correct band is **one** course, not two: fluted bracket blocks alternating
+with sunken coffers, each coffer holding a rosette. Pass 2 saw the alternation
+and mistook it for two rows at different heights.
+
+The "deep" in "deep bracketed cornice" is the **plain cavetto** below the
+enrichment — a 0.150 m hollow, which is where the cove wash catches.
+
+Counts and member heights are in `docs/research-findings.md` under the cornice
+topic. Anything marked `estimated` there came from photographs, not a published
+measurement.
+
+**The lesson that generalises:** a low-angle photograph of a ceiling detail is a
+bad source. The upward-looking shot the research agent found resolves the band
+properly. Look for the right camera angle before measuring.
+
+---
+
+## Operators act on the SELECTION, not the active object
+
+`bpy.ops.object.shade_auto_smooth` applies to selected objects. Setting only
+`view_layer.objects.active` is not enough — it tried to add a Smooth by Angle
+modifier to a light probe left selected from an earlier bake, which warned
+harmlessly but also meant the intended mesh might never have been smoothed.
+
+`oo_common.shade_smooth_by_angle` now deselects, selects its target, and
+restores the previous selection afterwards. Assume the same trap for any other
+`bpy.ops` call.
+
+---
+
+## Ellipse normals are not radial, and three research topics flagged it
+
+At a point on an ellipse the surface normal and the direction from the centre
+differ — by about 12° at the jib doors and 6° at the niches. Placing anything
+flat against the wall using the radial direction visibly skews it, and the
+research called this out independently for the doors, the windows and the
+niches. It is the most commonly repeated modelling error for this room.
+
+Already handled: `oo_common.ellipse_point` insets along the true normal, and
+`local_frame` returns it. **Use those.** Never compute a direction as
+`(-x, -y).normalized()`.
+
+---
+
 ## Read the reference before trusting a written description
 
 Eric Gugler's cornice is described everywhere as "deep bracketed". Built from

@@ -64,17 +64,31 @@ def wall_profile():
     for i in range(1, WALL_ROWS + 1):
         p.append((0.0, oo.RAIL_H + (oo.CORNICE_BOTTOM - oo.RAIL_H) * i / WALL_ROWS))
 
-    # Bracketed cornice. Classical order from the bottom up: bed mould, then the
-    # dentil course, then the modillion band, then the projecting corona.
-    c = oo.CORNICE_BOTTOM
+    # Corinthian modillion cornice. Member heights come from the photogrammetric
+    # solve in docs/research-findings.md, which fits a fisheye camera model to an
+    # upward-looking ceiling photograph. Total 0.49 m, bottom at 4.560, cove
+    # spring at 5.050. Read bottom to top.
+    #
+    # This replaced an invented bed-mould-and-dentil stack. There is no dentil
+    # course anywhere in this cornice - what looks like one in low-angle
+    # photographs is the coffered modillion soffit seen edge-on.
     p += [
-        (0.055, c + 0.040),  # bed mould
-        (0.075, c + 0.080),
-        (0.150, c + 0.080),  # dentil course front face
-        (0.150, c + 0.190),
-        (0.230, c + 0.190),  # modillion band
-        (0.230, c + 0.340),
-        (oo.CORNICE_P, c + 0.340),  # corona, the deepest projection
+        (0.045, 4.600),  # cyma reversa dies into the wall
+        (0.055, 4.625),  # fine guilloche / bead-and-reel band
+    ]
+    # Deep plain cavetto - this hollow is the "deep" in "deep bracketed cornice".
+    # Swept as a curve rather than a straight chamfer; it is 0.150 m tall and the
+    # concavity is what catches the cove wash.
+    for i in range(1, 5):
+        s = i / 4.0
+        p.append((0.055 + 0.080 * (s * s), 4.625 + 0.150 * s))
+    p += [
+        (0.135, 4.775),  # egg-and-dart ovolo starts
+        (0.185, 4.835),
+        (0.185, 4.845),  # coffered modillion soffit, set back behind the corona
+        (0.255, 4.945),
+        (0.270, 4.960),  # bead / astragal
+        (oo.CORNICE_P, 5.030),  # plain corona, the deepest projection
         # The lip carries on up past the trough floor. This overhang is what
         # hides the concealed lamps from anyone standing in the room.
         (oo.CORNICE_P, oo.LIP_TOP_Z),
