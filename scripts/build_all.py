@@ -39,6 +39,7 @@ PHASES = [
     "04_fireplace.py",   # Taft mantel and breast
     "05_desk.py",        # Resolute desk
     "05b_rug.py",        # 2010 rug, seal and border quotations
+    "05c_furniture.py",  # sofas, tables, chairs, lamps, flags
     "03_materials.py",   # procedural materials, and ALL fitting assignment
     "03b_pbr.py",        # Poly Haven PBR overrides
     "06_lighting.py",    # cove lamps, sun, world/HDRI, probe volume

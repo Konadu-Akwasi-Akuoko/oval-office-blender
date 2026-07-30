@@ -31,15 +31,20 @@ importlib.reload(oo)
 PREFIX = "OO_Cam"
 
 EYE_HEIGHT = 1.60
-LENS_MM = 24.0
+LENS_MM = 20.0
 
-# Tilt above horizontal, degrees. A level camera at eye height does not see the
-# cornice at all: at 28 mm the vertical half-angle is 19.9 deg, which at the
-# south wall 5.46 m away tops out at z 3.58 m, while the cornice starts at 4.62 m.
-# The whole point of the shot is the cove, so the lens went wider and the camera
-# tilts up. Revisit once the room has furniture and there is something at floor
-# level worth holding in frame.
-TILT_DEG = 7.0
+# Tilt above horizontal, degrees.
+#
+# Two-sided constraint, and both sides bite. Too level and the cornice is never
+# in shot: at 28 mm the vertical half-angle is 19.9 deg, so at the south wall
+# 5.46 m away the frame tops out at z 3.58 m against a cornice starting at
+# 4.56 m. Too much tilt and the floor goes - at 24 mm and 7 degrees the rug left
+# frame entirely, which wasted the border quotations built for exactly this shot.
+#
+# 20 mm at 3 degrees holds both. Vertical half-angle 26.9 deg, so at the south
+# wall the frame runs from below floor level up to z 4.74 m, taking in the rug
+# border and the bottom of the cornice together.
+TILT_DEG = 3.0
 
 # Distance the camera sits from the pivot. Zero is a pure nodal pan, which is
 # what was approved. A small non-zero value adds parallax and makes the room read
