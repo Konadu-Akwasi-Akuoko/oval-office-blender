@@ -157,6 +157,34 @@ def orient_normals(obj, inward=True):
     obj.data.update()
 
 
+def action_fcurves(obj):
+    """Every F-curve on `obj`, across Blender's old and new Action APIs.
+
+    Blender 4.4 introduced slotted actions and removed `Action.fcurves`. Curves
+    now live at `action.layers[i].strips[j].channelbag(slot).fcurves`. Blender
+    5.2 has no legacy fallback at all, so reaching for `action.fcurves` raises
+    AttributeError rather than returning an empty list.
+    """
+    anim = obj.animation_data
+    if anim is None or anim.action is None:
+        return []
+
+    action = anim.action
+
+    if hasattr(action, "layers"):
+        curves = []
+        slots = list(action.slots) or [None]
+        for layer in action.layers:
+            for strip in layer.strips:
+                for slot in slots:
+                    bag = strip.channelbag(slot) if slot is not None else None
+                    if bag is not None:
+                        curves.extend(bag.fcurves)
+        return curves
+
+    return list(getattr(action, "fcurves", []))
+
+
 def shade_smooth_by_angle(obj, degrees=31.0):
     """Smooth the sweep around the ellipse while keeping profile edges crisp."""
     for poly in obj.data.polygons:

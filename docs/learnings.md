@@ -118,6 +118,69 @@ longer used.
 
 ---
 
+## Blender 5.2 API traps
+
+Confirmed by introspection against the live instance, not from memory. These
+changed recently enough that most examples online are wrong.
+
+**The render engine is `BLENDER_EEVEE`, not `BLENDER_EEVEE_NEXT`.** The suffix
+was dropped once EEVEE Next became the only EEVEE. `scene.eevee.use_raytracing`
+existing is how you confirm you have the new engine. Setting
+`"BLENDER_EEVEE_NEXT"` raises an enum error.
+
+**`scene.eevee.use_bloom` no longer exists.** Bloom moved to the compositor in
+4.2. Add a Glare node instead of looking for a render toggle.
+
+**`Action.fcurves` is gone.** Blender 4.4 introduced slotted actions and 5.2 has
+no legacy fallback, so the attribute raises `AttributeError` rather than
+returning empty. Curves now live at:
+
+```python
+action.layers[i].strips[j].channelbag(slot).fcurves
+```
+
+Use `oo_common.action_fcurves(obj)`, which handles both shapes. This bit once
+already while setting keyframe interpolation.
+
+**Auto-smooth is an operator, not a mesh property.** `mesh.use_auto_smooth` was
+removed in 4.1. Use `bpy.ops.object.shade_auto_smooth(angle=...)`, which adds a
+"Smooth by Angle" modifier. `oo_common.shade_smooth_by_angle` wraps it.
+
+---
+
+## Render output
+
+**PNG sequence into `renders/frames/`, not straight to video.** 600 frames is
+long enough that a crash or a laptop sleep partway through must not lose the
+lot. Frames already written survive, and the render resumes. ffmpeg encodes to
+mp4 afterwards.
+
+View transform is **AgX** with Base Contrast. Filmic is the old default and
+crushes the warm interior; Standard clips the window highlights badly.
+
+---
+
+## The 360 rig
+
+An empty at room centre with the camera parented to it. The **empty** is
+animated, not the camera, so lens and eye height can be changed without touching
+the animation.
+
+**The loop closes because the 360° keyframe sits on frame 601 while the timeline
+ends at 600.** Frame 601 would be identical to frame 1, so rendering it doubles a
+frame and produces a visible hitch. Verified: frame 600 is at 359.4°, frame 601
+at 0°, and the step is a constant 0.6°/frame.
+
+Interpolation is **linear, with VECTOR handles**. Bezier easing makes the seam
+stutter, because the speed at the end would not match the speed at the start.
+
+`ORBIT_RADIUS` in `07_camera.py` is **0.0**, a pure nodal pan, which is what was
+approved. A small non-zero value (0.3–1.2 m) adds parallax and makes the room
+read as more three-dimensional, but is no longer a pivot in place. Worth trying
+if the final render feels flat like a panorama.
+
+---
+
 ## Verified room measurements
 
 Confirmed against Wikipedia and the White House Historical Association.
