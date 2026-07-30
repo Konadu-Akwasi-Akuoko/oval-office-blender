@@ -68,19 +68,26 @@ def wall_profile():
         (0.150, c + 0.190),
         (0.230, c + 0.190),  # modillion band
         (0.230, c + 0.340),
-        (0.300, c + 0.340),  # corona
-        (oo.CORNICE_P, oo.COVE_SPRING),
+        (oo.CORNICE_P, c + 0.340),  # corona, the deepest projection
+        # The lip carries on up past the trough floor. This overhang is what
+        # hides the concealed lamps from anyone standing in the room.
+        (oo.CORNICE_P, oo.LIP_TOP_Z),
+        (oo.LIP_INNER_P, oo.LIP_TOP_Z),
+        # Inner face of the lip drops back down into the trough.
+        (oo.LIP_INNER_P, oo.TROUGH_Z),
+        # Trough floor, running back toward the wall.
+        (oo.COVE_SPRING_P, oo.TROUGH_Z),
     ]
 
-    # The cove. Parametrised so the tangent is vertical where it springs off the
-    # cornice and horizontal where it meets the flat ceiling - that is what makes
-    # it read as a cove rather than a chamfer.
+    # The cove, springing from the back of the trough. Parametrised so the
+    # tangent is vertical at the spring and horizontal where it meets the flat
+    # ceiling - that is what makes it read as a cove rather than a chamfer.
     rise = oo.CEIL_CENTRE - oo.COVE_SPRING
     for i in range(1, oo.COVE_STEPS + 1):
         s = (i / oo.COVE_STEPS) * (math.pi / 2)
         p.append(
             (
-                oo.CORNICE_P + oo.COVE_RUN * (1.0 - math.cos(s)),
+                oo.COVE_SPRING_P + oo.COVE_RUN * (1.0 - math.cos(s)),
                 oo.COVE_SPRING + rise * math.sin(s),
             )
         )

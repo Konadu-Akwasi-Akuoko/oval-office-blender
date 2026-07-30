@@ -31,7 +31,15 @@ importlib.reload(oo)
 PREFIX = "OO_Cam"
 
 EYE_HEIGHT = 1.60
-LENS_MM = 28.0
+LENS_MM = 24.0
+
+# Tilt above horizontal, degrees. A level camera at eye height does not see the
+# cornice at all: at 28 mm the vertical half-angle is 19.9 deg, which at the
+# south wall 5.46 m away tops out at z 3.58 m, while the cornice starts at 4.62 m.
+# The whole point of the shot is the cove, so the lens went wider and the camera
+# tilts up. Revisit once the room has furniture and there is something at floor
+# level worth holding in frame.
+TILT_DEG = 7.0
 
 # Distance the camera sits from the pivot. Zero is a pure nodal pan, which is
 # what was approved. A small non-zero value adds parallax and makes the room read
@@ -72,7 +80,7 @@ def build_rig():
     # the horizon, Z+180 turns it from north to south so the shot opens on the
     # windows and the desk.
     cam.location = (0.0, -ORBIT_RADIUS, 0.0)
-    cam.rotation_euler = (math.radians(90.0), 0.0, math.radians(180.0))
+    cam.rotation_euler = (math.radians(90.0 + TILT_DEG), 0.0, math.radians(180.0))
     cam.parent = pivot
     coll.objects.link(cam)
 
@@ -144,6 +152,7 @@ def main():
         "pivot": pivot.name,
         "camera": cam.name,
         "lens_mm": cam.data.lens,
+        "tilt_deg": TILT_DEG,
         "eye_height": EYE_HEIGHT,
         "orbit_radius": ORBIT_RADIUS,
         "frames": f"{scene.frame_start}-{scene.frame_end}",

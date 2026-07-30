@@ -44,12 +44,20 @@ CORNICE_BOTTOM = 4.620
 BASEBOARD_P = 0.030
 WAINSCOT_P = 0.012
 RAIL_P = 0.045
-CORNICE_P = 0.300  # total projection at the top of the cornice
+CORNICE_P = 0.300  # projection of the cornice lip, the room's deepest point
 
-COVE_RUN = 0.750  # how far the cove travels inward, on top of CORNICE_P
+# The concealed light trough. The cornice lip rises ABOVE the trough floor and
+# hides the lamps from anyone in the room; the cove springs from the back of the
+# trough, near the wall plane. Without this gutter there is nowhere to put the
+# cove lights and they end up buried inside wall geometry.
+LIP_TOP_Z = 5.100  # top of the cornice lip, above the trough floor
+LIP_INNER_P = 0.240  # inner face of the lip, where it drops into the trough
+TROUGH_Z = COVE_SPRING  # trough floor height
+COVE_SPRING_P = 0.030  # inset where the cove springs, just off the wall plane
 
 # Where the flat central ceiling begins, as an inset from the ellipse.
-CEIL_INSET = CORNICE_P + COVE_RUN
+CEIL_INSET = 1.050
+COVE_RUN = CEIL_INSET - COVE_SPRING_P  # how far the cove travels inward
 
 SEG = 256  # segments around the ellipse
 COVE_STEPS = 14  # subdivisions through the cove curve
@@ -102,23 +110,64 @@ def get_collection(name=COLLECTION):
     return coll
 
 
+# Object data lives in a different collection per type, and orphaned data is not
+# freed just because the object holding it was deleted.
+_DATA_COLLECTIONS = (
+    "meshes",
+    "lights",
+    "cameras",
+    "curves",
+    "metaballs",
+    "armatures",
+    "lattices",
+    "volumes",
+)
+
+
 def purge(prefix):
-    """Delete every object whose name starts with `prefix`, and its data.
+    """Delete every object whose name starts with `prefix`, and free its data.
 
     This is what makes the build scripts idempotent. Re-running a phase must not
     leave two floors stacked on each other, and iterating on a look means
     re-running phases many times.
+
+    Freeing the DATA matters as much as deleting the object. Blender keeps
+    orphaned datablocks alive until the file is saved and reloaded, and a new
+    datablock asking for a name that is still taken silently becomes
+    `OO_Light_Cove_00.001`. Anything that later looks an object up by its
+    expected name then fails. This bit once: 29 orphaned lights accumulated
+    across a handful of re-runs before it surfaced.
     """
     removed = 0
     for obj in [o for o in bpy.data.objects if o.name.startswith(prefix)]:
-        data = obj.data
         bpy.data.objects.remove(obj, do_unlink=True)
         removed += 1
-        if isinstance(data, bpy.types.Mesh) and data.users == 0:
-            bpy.data.meshes.remove(data)
-    for block in [m for m in bpy.data.meshes if m.name.startswith(prefix) and m.users == 0]:
-        bpy.data.meshes.remove(block)
+
+    for attr in _DATA_COLLECTIONS:
+        collection = getattr(bpy.data, attr, None)
+        if collection is None:
+            continue
+        for block in [b for b in collection if b.users == 0 and b.name.startswith(prefix)]:
+            collection.remove(block)
+
     return removed
+
+
+def purge_orphans():
+    """Free every unused datablock, whatever it is called.
+
+    Belt and braces for data that drifted to a `.001` name before `purge` was
+    fixed, and for anything an interrupted run left behind.
+    """
+    freed = 0
+    for attr in _DATA_COLLECTIONS + ("materials", "node_groups"):
+        collection = getattr(bpy.data, attr, None)
+        if collection is None:
+            continue
+        for block in [b for b in collection if b.users == 0 and not b.use_fake_user]:
+            collection.remove(block)
+            freed += 1
+    return freed
 
 
 def new_mesh_object(name, verts, faces, collection=None):

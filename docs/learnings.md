@@ -181,6 +181,72 @@ if the final render feels flat like a panorama.
 
 ---
 
+## Cove lighting needs a trough, and the first attempt had none
+
+The first cove-light attempt rendered a flat, unlit room. The cause was
+geometric, not a lighting setting: the wall profile ran the cornice straight into
+the cove with no gutter, so lamps placed at inset 0.20 m were **inside** wall
+geometry sitting at inset 0.302 m. Their light was blocked by the wall itself.
+
+Real cove lighting needs three things in section, and all three matter:
+
+1. A cornice **lip** that projects into the room — here 0.300 m.
+2. The lip rising **above** the trough floor (top at z 5.100, floor at 5.055).
+   This overhang is what hides the lamps.
+3. The cove springing from the **back** of the trough, near the wall plane
+   (inset 0.030), so the lamps have room to throw light across it.
+
+Lamps sit at inset 0.130, z 5.075 — above the floor, below the lip top.
+
+**The concealment is verified by sight line, not by eye.** From the camera at
+room centre at 1.60 m, a ray grazing the lip's inner top edge (inset 0.240,
+z 5.100) is at z 5.174 by the time it reaches the lamp's inset. The lamp at
+5.075 sits below that, so it stays hidden through the whole 360. Because the
+camera is a pure nodal pivot at the centre, that is the only viewpoint that ever
+has to be checked.
+
+28 area lights at 55 W, warm 2900 K. **Shadows are off on all of them** — they
+wash a smooth continuous cove and cast nothing meaningful, and 28
+shadow-casting lights is a large, entirely wasted cost in EEVEE.
+
+---
+
+## purge() must free datablocks, not just delete objects
+
+Deleting an object does **not** free its data. Blender keeps orphaned datablocks
+alive, and a new one asking for a name still held silently becomes
+`OO_Light_Cove_00.001`. Any later lookup by expected name then fails with a
+KeyError.
+
+The first `purge` only cleaned `bpy.data.meshes`, so 29 orphaned lights and 2
+cameras accumulated across a few re-runs before it surfaced. It now sweeps
+meshes, lights, cameras, curves, metaballs, armatures, lattices and volumes.
+`purge_orphans()` is the belt-and-braces sweep for anything already drifted.
+
+Any new object type used in a later phase must be added to `_DATA_COLLECTIONS`.
+
+---
+
+## The camera must tilt up to see the cove
+
+A level camera at eye height never sees the cornice. At 28 mm the vertical
+half-angle is 19.9°, so at the south wall 5.46 m away the top of frame is only
+z 3.58 m — and the cornice starts at 4.62 m. The first lit test render was a
+featureless wall for exactly this reason, not a lighting fault.
+
+Now 24 mm with a 7° tilt. This needs revisiting once there is furniture, because
+tilting up trades away floor — and the rug, which carries the presidential seal
+and the quotations, is on the floor.
+
+---
+
+## World.use_nodes is deprecated
+
+Blender warns it will go in 6.0. Harmless now; if this project is ever reopened
+on a later build, the world setup in `06_lighting.py` is the thing that breaks.
+
+---
+
 ## Verified room measurements
 
 Confirmed against Wikipedia and the White House Historical Association.
