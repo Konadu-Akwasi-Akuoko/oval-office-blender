@@ -99,6 +99,117 @@ def t_positions(count=SEG):
     return [2.0 * math.pi * i / count for i in range(count)]
 
 
+def perimeter(samples=4096, semi_x=SEMI_X, semi_y=SEMI_Y):
+    total = 0.0
+    prev = ellipse_point(0.0, semi_x=semi_x, semi_y=semi_y)
+    for i in range(1, samples + 1):
+        cur = ellipse_point(2.0 * math.pi * i / samples, semi_x=semi_x, semi_y=semi_y)
+        total += (cur - prev).length
+        prev = cur
+    return total
+
+
+def t_by_arclength(count, samples=4096):
+    """`count` values of t spaced evenly by ARC LENGTH, not by parameter.
+
+    Uniform `t` bunches up at the ends of the long axis, so dentils spaced that
+    way would visibly crowd at the north and south ends of the room and spread
+    out east and west. Anything repeated round the wall has to be spaced this
+    way instead.
+    """
+    step = 2.0 * math.pi / samples
+    cumulative = [0.0]
+    prev = ellipse_point(0.0)
+    for i in range(1, samples + 1):
+        cur = ellipse_point(step * i)
+        cumulative.append(cumulative[-1] + (cur - prev).length)
+        prev = cur
+
+    total = cumulative[-1]
+    out = []
+    j = 0
+    for k in range(count):
+        target = total * k / count
+        while j < samples and cumulative[j + 1] < target:
+            j += 1
+        span = cumulative[j + 1] - cumulative[j]
+        frac = 0.0 if span <= 0.0 else (target - cumulative[j]) / span
+        out.append(step * (j + frac))
+    return out
+
+
+def local_frame(t):
+    """Tangent, inward normal and up vectors on the ellipse at `t`."""
+    tangent = Vector((-SEMI_X * math.sin(t), SEMI_Y * math.cos(t), 0.0))
+    tangent.normalize()
+    inward = Vector((-math.cos(t) / SEMI_X, -math.sin(t) / SEMI_Y, 0.0))
+    inward.normalize()
+    return tangent, inward, Vector((0.0, 0.0, 1.0))
+
+
+def add_ellipsoid(verts, faces, centre, tangent, inward, up, width, height, depth,
+                  rings=6, segments=10):
+    """Append a flattened ellipsoid boss to running vert/face lists.
+
+    Used for the oval paterae on the cornice. Deliberately low-poly: at roughly
+    80 mm across and 5 m from a camera that never gets closer, extra subdivision
+    buys nothing and there are 160-odd of them.
+    """
+    base = len(verts)
+    for i in range(rings + 1):
+        v = math.pi * i / rings
+        for j in range(segments):
+            u = 2.0 * math.pi * j / segments
+            verts.append(
+                tuple(
+                    centre
+                    + tangent * (width / 2.0 * math.sin(v) * math.cos(u))
+                    + up * (height / 2.0 * math.sin(v) * math.sin(u))
+                    + inward * (depth * (1.0 - math.cos(v)) / 2.0)
+                )
+            )
+    for i in range(rings):
+        for j in range(segments):
+            a = base + i * segments + j
+            b = base + i * segments + (j + 1) % segments
+            c = base + (i + 1) * segments + (j + 1) % segments
+            d = base + (i + 1) * segments + j
+            faces.append((a, b, c, d))
+
+
+def add_box(verts, faces, centre, tangent, inward, up, width, depth, height):
+    """Append an axis-aligned-in-local-frame box to running vert/face lists.
+
+    Used to array hundreds of dentils into a single mesh. Separate objects would
+    be far more expensive for no benefit - they are never manipulated singly.
+    """
+    base = len(verts)
+    hw, hh = width / 2.0, height / 2.0
+    for sign_u in (-1, 1):
+        for sign_d in (0, 1):
+            for sign_v in (-1, 1):
+                verts.append(
+                    tuple(
+                        centre
+                        + tangent * (hw * sign_u)
+                        + inward * (depth * sign_d)
+                        + up * (hh * sign_v)
+                    )
+                )
+    # Vertex order above is (u, d, v) with v innermost.
+    b = base
+    faces.extend(
+        [
+            (b + 0, b + 1, b + 3, b + 2),
+            (b + 4, b + 6, b + 7, b + 5),
+            (b + 0, b + 4, b + 5, b + 1),
+            (b + 2, b + 3, b + 7, b + 6),
+            (b + 1, b + 5, b + 7, b + 3),
+            (b + 0, b + 2, b + 6, b + 4),
+        ]
+    )
+
+
 # --- Scene plumbing ---------------------------------------------------------
 
 
