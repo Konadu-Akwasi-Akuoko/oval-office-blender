@@ -11,19 +11,54 @@ the cream rug with quotations around its border.
 
 ## Status
 
-Design approved, implementation not yet started. See
-[the spec](docs/superpowers/specs/2026-07-30-oval-office-design.md).
+Room built and rendering. The full 600-frame 4K animation takes about
+3.5 hours on an M1 at 20.9 s/frame.
 
-## How it is built
+## Building it
 
-The architecture is scripted rather than sourced, because nothing off-the-shelf
-matches an elliptical room. Each build phase is an idempotent Python script in
-`scripts/`, so any stage can re-run without duplicating geometry.
+Open `oval_office.blend` in Blender 5.2 with the MCP add-on, then:
+
+```python
+exec(open("scripts/build_all.py").read())
+```
+
+That rebuilds the entire room from nothing in under a second. Then:
+
+```bash
+python3 scripts/fetch_polyhaven.py    # free CC0 assets, ~83 MB
+./scripts/encode.sh                   # PNG sequence to mp4, after rendering
+```
+
+**Phase order is load-bearing** and lives in `build_all.py`. Three separate
+silent bugs came from getting it wrong — see `docs/learnings.md`.
+
+| Phase | Builds |
+|---|---|
+| `01_shell` | Elliptical wall, cornice profile, cove, floor, ceiling |
+| `02_joinery` | 126 modillions, rosettes, 252 egg-and-dart |
+| `02b_openings` | Windows, doors, pediments, jib doors |
+| `02c_niches` | Four arch-and-shell units |
+| `04_fireplace` | Taft mantel and breast |
+| `05_desk` | Resolute desk |
+| `05b_rug` | 2010 rug, seal, border quotations |
+| `05c_furniture` | Sofas, tables, chairs, lamps, flags |
+| `03_materials` / `03b_pbr` | Procedural materials, then PBR overrides |
+| `06_lighting` | Cove lamps, sun, HDRI, light probe volume |
+| `07_camera` | 360 rig and render settings |
+
+## Accuracy
 
 Measurements come from the White House Historical Association and Wikipedia:
-the ellipse is 35 ft 10 in × 29 ft, with the ceiling 18 ft 6 in at its centre.
+the ellipse is 35 ft 10 in × 29 ft, ceiling 18 ft 6 in. Verified in the model at
+8.840 × 10.922 m with 75.8 m² of floor, against the published 816 sq ft.
 
-Rendering targets EEVEE Next at 3840×2160, 30 fps.
+Finer detail — the cornice profile, the modillion count, the ceiling medallion —
+comes from a 14-agent research pass that solved them photogrammetrically against
+an upward-looking 2022 ceiling photograph. Every claim carries its own
+confidence in [`docs/research-findings.md`](docs/research-findings.md);
+`estimated` means derived from photographs, not from a published measurement.
+
+Rendering is EEVEE Next at 3840×2160, 30 fps.
 
 ## Layout
 
