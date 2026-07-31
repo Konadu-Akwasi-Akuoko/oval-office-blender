@@ -246,12 +246,27 @@ def build_text(coll):
     # Leave a little air at each join for the star.
     fit = (perimeter * 0.955) / measured if measured else 1.0
 
+    # The bezier circle runs CLOCKWISE from the Curve modifier's point of view,
+    # so advancing the cursor put the quotations round the rug in reverse order
+    # and rotated. Measured: reading counter-clockwise gave FDR, TR, JFK,
+    # Lincoln, MLK - exactly the reverse of the researched sequence.
+    #
+    # PHASE puts FDR centred on due south, in front of the desk and the three
+    # windows, which is where the research places it. Everything else follows
+    # from that, counter-clockwise.
+    DIRECTION = -1.0
+    # Tuned so FDR lands on due south. Bearing runs OPPOSITE to PHASE - raising
+    # PHASE lowers the bearing - so the first attempt at 0.444 moved everything
+    # the wrong way and the assertion below caught it.
+    PHASE = 0.556
+
     made = []
     cursor = 0.0
     for obj, name, quote in built:
         obj.data.size = TEXT_SIZE * fit
         share = len(quote) / total_chars
         centre_frac = (cursor + len(quote) / 2.0) / total_chars
+        centre_frac = (PHASE + DIRECTION * centre_frac) % 1.0
         cursor += len(quote)
 
         # The Curve modifier maps the object's local X onto distance along the
@@ -270,7 +285,7 @@ def build_text(coll):
     cursor = 0.0
     for _, quote in QUOTES:
         cursor += len(quote)
-        frac = cursor / total_chars
+        frac = (PHASE + DIRECTION * (cursor / total_chars)) % 1.0
         t = 2.0 * math.pi * frac - math.pi / 2.0
         cx, cy = a * math.cos(t), b * math.sin(t)
         base = len(v)
@@ -297,6 +312,39 @@ def main():
     seal = build_seal(coll)
     texts, curve, fit = build_text(coll)
 
+    # Verify where each quotation actually landed, rather than trusting the
+    # parametrisation. The Curve modifier's direction is not obvious from the
+    # code, and it silently ran the whole ring backwards once.
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    placed = {}
+    for obj, name, _ in texts:
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        if not mesh.vertices:
+            evaluated.to_mesh_clear()
+            continue
+        pts = [obj.matrix_world @ v.co for v in mesh.vertices]
+        cx = sum(p.x for p in pts) / len(pts)
+        cy = sum(p.y for p in pts) / len(pts)
+        evaluated.to_mesh_clear()
+        placed[name] = round(math.degrees(math.atan2(cx, -cy)) % 360.0, 1)
+
+    # Expected bearings from due south, positive east, per the research:
+    # FDR before the desk, MLK up the east side, Lincoln north-east, JFK at the
+    # north end by the fireplace, TR down the west side.
+    expected = {"FDR": 0.0, "MLK": 63.0, "LINCOLN": 140.0, "JFK": 202.0, "TR": 288.0}
+    for name, want in expected.items():
+        got = placed.get(name)
+        if got is None:
+            continue
+        delta = abs((got - want + 180.0) % 360.0 - 180.0)
+        if delta > 40.0:
+            raise RuntimeError(
+                f"Rug quotation {name} at {got} deg, expected about {want} deg "
+                f"(off by {delta:.0f}). Check DIRECTION and PHASE in build_text."
+            )
+
     return {
         "size_m": f"{SEMI_X * 2} x {SEMI_Y * 2}",
         "bands": [o.name.split("_")[-1] for o in bands],
@@ -304,6 +352,7 @@ def main():
         "quotations": [(n, f"{deg} deg") for _, n, deg in texts],
         "total_characters": sum(len(q) for _, q in QUOTES),
         "text_fit_factor": fit,
+        "quote_bearings_from_south": placed,
         "faces": sum(len(o.data.polygons) for o in bands + seal),
     }
 
