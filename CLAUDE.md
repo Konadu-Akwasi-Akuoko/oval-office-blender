@@ -54,6 +54,27 @@ whole point of checking early is to act on what you find.
 Restarting costs only the frames already done. At about 21 s/frame, stopping at
 40% throws away roughly 85 minutes — always less than rendering twice.
 
+## Sweep the full rotation before every restart
+
+Better than waiting for the render to reach each angle. Eight low-res frames
+covering all eight compass points take about two minutes and catch faults the
+render will not arrive at for hours:
+
+```python
+sc.render.resolution_percentage = 24
+sc.eevee.taa_render_samples = 24
+for fr in (1, 76, 151, 226, 301, 376, 451, 526):   # 0, 45, 90 ... 315 degrees
+    sc.frame_set(fr); sc.render.filepath = f"/tmp/sweep/s{fr:04d}_"
+    bpy.ops.render.render(write_still=True)
+```
+
+Sequential checking is structurally blind: frames 1–100 only ever look south and
+east. Empty bookshelves and a room with no art on any wall both survived two
+render attempts for exactly that reason, and the sweep found them immediately.
+
+**Do this after every fix and before relaunching.** Fix everything the sweep
+finds in one stop.
+
 # Subagents
 
 **Always use Opus for subagents on this project.** Pass `model: 'opus'`
