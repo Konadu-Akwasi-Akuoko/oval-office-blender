@@ -347,7 +347,12 @@ def chest(name, coll, location, az, wood):
     w, d, h = 1.15, 0.56, 0.92
     v, f = [], []
     emit(v, f, Vector((0, 0, h - 0.02)), w + 0.05, d + 0.04, 0.04)
-    emit(v, f, Vector((0, 0, (h - 0.04) / 2.0 + 0.10)), w, d, h - 0.14)
+    # Body sits ON the feet, which top out at 0.10. The old expression put its
+    # underside at 0.15, so the carcase floated 50 mm above its own feet and
+    # window light streamed through the gap onto the floor - which rendered as
+    # a pale slab under the chest. Passed over twice by eye; found by listing
+    # the mesh's z levels.
+    emit(v, f, Vector((0, 0, 0.10 + (h - 0.14) / 2.0)), w, d, h - 0.14)
     for i in range(4):
         emit(v, f, Vector((0, -d / 2.0 - 0.008, 0.22 + i * 0.18)), w - 0.10, 0.016, 0.14)
     for sx in (-1, 1):
@@ -463,6 +468,25 @@ def main():
             outside[obj.name] = round(worst, 3)
     if outside:
         raise RuntimeError(f"Furniture protruding through the wall: {outside}")
+
+    # Nothing may hover. A piece whose lowest vertex is well above the floor is
+    # either floating or has an internal gap between its parts - the chest's
+    # carcase sat 50 mm above its own feet and window light poured through the
+    # gap. Flags and lamp shades are legitimately airborne, so they are exempt.
+    # Legitimately off the floor: flag cloth hangs from a pole, and the lamps
+    # stand on the side tables whose tops are at 0.72.
+    STANDS_ON_SOMETHING = ("_Cloth", "_Shade", "_Base")
+    floating = {}
+    for obj in made:
+        if obj.type != "MESH" or not obj.data.vertices:
+            continue
+        if obj.name.endswith(STANDS_ON_SOMETHING):
+            continue
+        lowest = min((obj.matrix_world @ v.co).z for v in obj.data.vertices)
+        if lowest > 0.02:
+            floating[obj.name] = round(lowest, 3)
+    if floating:
+        raise RuntimeError(f"Furniture not touching the floor: {floating}")
 
     return {
         "pieces": len(made),
