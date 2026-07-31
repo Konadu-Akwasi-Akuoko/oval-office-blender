@@ -69,7 +69,19 @@ def emit(v, f, centre, w, d, h, ax=X, ay=Y):
 def finish(name, v, f, coll, material, location=(0, 0, 0), az=0.0, soften=0.0):
     obj = oo.new_mesh_object(f"{PREFIX}_{name}", v, f, coll)
     obj.location = location
-    obj.rotation_euler = (0.0, 0.0, math.radians(-az))
+
+    # rot_z = 180 - azimuth, NOT -azimuth.
+    #
+    # The research layout table says "rot_z = -azimuth IF the asset's front
+    # faces +Y". Every model here is built with its BACK at local +Y and its
+    # front at -Y, so that formula turns each piece exactly 180 degrees wrong.
+    # Both sofas, both armchairs, the side chairs and the chest all ended up
+    # facing the walls with their backs to the conversation group, and the
+    # chest had its drawers against the wall.
+    #
+    # Caught by measuring, not by eye: the dot product of each piece's facing
+    # vector against the direction to the coffee table was -0.99 to -1.00.
+    obj.rotation_euler = (0.0, 0.0, math.radians(180.0 - az))
     obj.data.materials.append(material)
     obj["oo_material"] = "keep"
 
@@ -398,9 +410,31 @@ def main():
     for i, (x, y) in enumerate(((-1.05, -2.55), (1.05, -2.55))):
         made.append(side_chair(f"DeskChair{i}", coll, (x, y, 0.0), 180.0, wood, fabric))
 
+    # Assert the seating actually faces the conversation group. Orientation is a
+    # sign convention, and getting it backwards looks plausible in a wireframe
+    # and only shows up as "something is off" in a finished render - which cost
+    # 307 frames once. A dot product settles it in a line.
+    checks = {}
+    for name, target in (
+        ("SofaWest", (0.0, 2.25)), ("SofaEast", (0.0, 2.25)),
+        ("ArmchairWest", (0.0, 2.25)), ("ArmchairEast", (0.0, 2.25)),
+    ):
+        obj = bpy.data.objects[f"{PREFIX}_{name}"]
+        facing = (obj.matrix_world.to_3x3() @ Vector((0.0, -1.0, 0.0))).normalized()
+        toward = (Vector((target[0], target[1], 0.0))
+                  - Vector((obj.location.x, obj.location.y, 0.0))).normalized()
+        dot = facing.dot(toward)
+        checks[name] = round(dot, 2)
+        if dot < 0.3:
+            raise RuntimeError(
+                f"{name} faces away from the seating group (dot {dot:.2f}). "
+                "rot_z should be 180 - azimuth; the models' fronts are at -Y."
+            )
+
     return {
         "pieces": len(made),
         "faces": sum(len(o.data.polygons) for o in made),
+        "facing_dot": checks,
         "wall_hugging_azimuths": {
             "ChestSW": round(wall_azimuth(-2.98, -3.60), 1),
             "SideChair0": round(wall_azimuth(-3.81, 1.90), 1),
