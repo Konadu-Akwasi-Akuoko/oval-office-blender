@@ -63,7 +63,17 @@ def mat(name, colour, roughness=0.62, metallic=0.0):
 
 
 def emit(v, f, centre, w, d, h, ax=X, ay=Y):
-    oo.add_box(v, f, centre, ax, ay, Z, w, d, h)
+    """Box CENTRED on `centre` in all three axes.
+
+    oo.add_box extrudes from its centre ALONG the depth axis rather than
+    centring on it, so every piece here was sitting half its own depth out of
+    position - 475 mm for a sofa. It looked plausible because everything was
+    displaced consistently, and it only surfaced when the wall-clearance
+    assertion caught the flagpole bases 72 mm outside the ellipse.
+
+    The layout research gives centre coordinates, so centring is what is wanted.
+    """
+    oo.add_box(v, f, centre - ay * (d / 2.0), ax, ay, Z, w, d, h)
 
 
 def finish(name, v, f, coll, material, location=(0, 0, 0), az=0.0, soften=0.0):
@@ -225,7 +235,13 @@ def flagpole(name, coll, location, wood, cloth):
         for c in range(cols):
             a = r * (cols + 1) + c
             f.append((a, a + 1, a + cols + 2, a + cols + 1))
-    flag = finish(name + "_Cloth", v, f, coll, cloth, location, soften=0.008)
+    # az=180 so the cloth drapes NORTH, into the room.
+    #
+    # The flags took the default azimuth, so when rot_z changed from -az to
+    # 180-az they flipped with everything else and ended up draping south -
+    # straight through the wall, 380 mm past it. Fixing one orientation bug
+    # created another in the pieces that had been relying on the old default.
+    flag = finish(name + "_Cloth", v, f, coll, cloth, location, az=180.0, soften=0.008)
     return pole, flag
 
 
@@ -431,10 +447,28 @@ def main():
                 "rot_z should be 180 - azimuth; the models' fronts are at -Y."
             )
 
+    # Nothing may poke through the elliptical wall. Cheap to check, and it
+    # catches the whole class of "rotated the wrong way and now it is outside"
+    # rather than just the case already found.
+    outside = {}
+    for obj in made:
+        if obj.type != "MESH" or not obj.data.vertices:
+            continue
+        worst = 0.0
+        for vert in obj.data.vertices:
+            p = obj.matrix_world @ vert.co
+            r = (p.x / oo.SEMI_X) ** 2 + (p.y / oo.SEMI_Y) ** 2
+            worst = max(worst, r)
+        if worst > 1.02:
+            outside[obj.name] = round(worst, 3)
+    if outside:
+        raise RuntimeError(f"Furniture protruding through the wall: {outside}")
+
     return {
         "pieces": len(made),
         "faces": sum(len(o.data.polygons) for o in made),
         "facing_dot": checks,
+        "wall_clearance_ok": True,
         "wall_hugging_azimuths": {
             "ChestSW": round(wall_azimuth(-2.98, -3.60), 1),
             "SideChair0": round(wall_azimuth(-3.81, 1.90), 1),
